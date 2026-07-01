@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
@@ -50,7 +51,17 @@ public sealed class WebView2ApiTransport : IClaudeApiTransport, IDisposable
     private async Task InitializeCoreAsync()
     {
         _hostWindow.Show();
-        await _webView.EnsureCoreWebView2Async();
+
+        // EnsureCoreWebView2Async() with no environment defaults the user-data folder to the
+        // executable's own directory. That's writable in Debug (bin/Debug/...) but not once
+        // installed to Program Files, where WebView2 then fails with UnauthorizedAccessException
+        // trying to create its profile folder. Point it at a per-user writable location instead.
+        var userDataFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "ClaudeUsageTracker", "WebView2");
+        var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: userDataFolder);
+
+        await _webView.EnsureCoreWebView2Async(environment);
         _webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
 
         var navigationCompleted = new TaskCompletionSource();
