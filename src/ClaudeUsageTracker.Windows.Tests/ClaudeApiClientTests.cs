@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Http;
 using ClaudeUsageTracker.Windows.Services;
 
 namespace ClaudeUsageTracker.Windows.Tests;
@@ -18,8 +16,8 @@ public class ClaudeApiClientTests
     [Fact]
     public async Task FetchUsageDataAsync_ParsesAllFields()
     {
-        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, UsageResponseJson);
-        var client = new ClaudeApiClient(new HttpClient(handler));
+        var transport = new FakeApiTransport(200, UsageResponseJson);
+        var client = new ClaudeApiClient(transport);
 
         var usage = await client.FetchUsageDataAsync("sk-ant-sid01-test-key", "org-123");
 
@@ -33,10 +31,33 @@ public class ClaudeApiClientTests
     }
 
     [Fact]
+    public async Task FetchUsageDataAsync_TreatsExplicitNullPeriodsAsZero()
+    {
+        const string json = """
+        {
+            "five_hour": null,
+            "seven_day": null,
+            "seven_day_opus": null,
+            "seven_day_sonnet": null
+        }
+        """;
+        var transport = new FakeApiTransport(200, json);
+        var client = new ClaudeApiClient(transport);
+
+        var usage = await client.FetchUsageDataAsync("sk-ant-sid01-test-key", "org-123");
+
+        Assert.Equal(0, usage.SessionPercentage);
+        Assert.Equal(0, usage.WeeklyPercentage);
+        Assert.Equal(0, usage.OpusWeeklyPercentage);
+        Assert.Equal(0, usage.SonnetWeeklyPercentage);
+        Assert.Null(usage.SonnetWeeklyResetTime);
+    }
+
+    [Fact]
     public async Task FetchUsageDataAsync_DefaultsMissingFieldsToZero()
     {
-        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, "{}");
-        var client = new ClaudeApiClient(new HttpClient(handler));
+        var transport = new FakeApiTransport(200, "{}");
+        var client = new ClaudeApiClient(transport);
 
         var usage = await client.FetchUsageDataAsync("sk-ant-sid01-test-key", "org-123");
 
@@ -46,22 +67,34 @@ public class ClaudeApiClientTests
     }
 
     [Fact]
-    public async Task FetchUsageDataAsync_SendsSessionKeyAsCookie()
+    public async Task FetchUsageDataAsync_PassesPathAndSessionKeyToTransport()
     {
-        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, UsageResponseJson);
-        var client = new ClaudeApiClient(new HttpClient(handler));
+        var transport = new FakeApiTransport(200, UsageResponseJson);
+        var client = new ClaudeApiClient(transport);
 
         await client.FetchUsageDataAsync("sk-ant-sid01-test-key", "org-123");
 
-        var cookie = Assert.Single(handler.LastRequest!.Headers.GetValues("Cookie"));
-        Assert.Equal("sessionKey=sk-ant-sid01-test-key", cookie);
+        Assert.Equal("/organizations/org-123/usage", transport.LastPath);
+        Assert.Equal("sk-ant-sid01-test-key", transport.LastSessionKey);
     }
 
     [Fact]
     public async Task FetchUsageDataAsync_ThrowsUnauthorizedOn401()
     {
-        var handler = new FakeHttpMessageHandler(HttpStatusCode.Unauthorized, "");
-        var client = new ClaudeApiClient(new HttpClient(handler));
+        var transport = new FakeApiTransport(401, "");
+        var client = new ClaudeApiClient(transport);
+
+        var ex = await Assert.ThrowsAsync<ClaudeApiException>(
+            () => client.FetchUsageDataAsync("sk-ant-sid01-test-key", "org-123"));
+
+        Assert.True(ex.IsUnauthorized);
+    }
+
+    [Fact]
+    public async Task FetchUsageDataAsync_TreatsCloudflareChallengeAs403Unauthorized()
+    {
+        var transport = new FakeApiTransport(403, "<!DOCTYPE html><html><head><title>Just a moment...</title>");
+        var client = new ClaudeApiClient(transport);
 
         var ex = await Assert.ThrowsAsync<ClaudeApiException>(
             () => client.FetchUsageDataAsync("sk-ant-sid01-test-key", "org-123"));
@@ -72,8 +105,8 @@ public class ClaudeApiClientTests
     [Fact]
     public async Task FetchUsageDataAsync_ThrowsNonUnauthorizedOn500()
     {
-        var handler = new FakeHttpMessageHandler(HttpStatusCode.InternalServerError, "server error");
-        var client = new ClaudeApiClient(new HttpClient(handler));
+        var transport = new FakeApiTransport(500, "server error");
+        var client = new ClaudeApiClient(transport);
 
         var ex = await Assert.ThrowsAsync<ClaudeApiException>(
             () => client.FetchUsageDataAsync("sk-ant-sid01-test-key", "org-123"));
@@ -85,8 +118,8 @@ public class ClaudeApiClientTests
     public async Task FetchOrganizationsAsync_ParsesOrganizationList()
     {
         const string json = """[{"uuid":"org-1","name":"Acme","capabilities":[]},{"uuid":"org-2","name":"Beta","capabilities":[]}]""";
-        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, json);
-        var client = new ClaudeApiClient(new HttpClient(handler));
+        var transport = new FakeApiTransport(200, json);
+        var client = new ClaudeApiClient(transport);
 
         var organizations = await client.FetchOrganizationsAsync("sk-ant-sid01-test-key");
 
@@ -98,8 +131,8 @@ public class ClaudeApiClientTests
     [Fact]
     public async Task FetchOrganizationsAsync_ThrowsWhenEmpty()
     {
-        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, "[]");
-        var client = new ClaudeApiClient(new HttpClient(handler));
+        var transport = new FakeApiTransport(200, "[]");
+        var client = new ClaudeApiClient(transport);
 
         await Assert.ThrowsAsync<ClaudeApiException>(() => client.FetchOrganizationsAsync("sk-ant-sid01-test-key"));
     }

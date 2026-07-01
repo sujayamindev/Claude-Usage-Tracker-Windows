@@ -1,8 +1,4 @@
 using System.Globalization;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using ClaudeUsageTracker.Windows.Models;
 
@@ -11,21 +7,18 @@ namespace ClaudeUsageTracker.Windows.Services;
 /// <summary>
 /// Ported from the macOS app's ClaudeAPIService. Session-key (cookie) auth only — the CLI OAuth
 /// flow is out of scope for the MVP. Mirrors the response parsing in ClaudeAPIService.parseUsageResponse.
+/// Network calls are delegated to IClaudeApiTransport (see WebView2ApiTransport / spec addendum
+/// for why this can't be a plain HttpClient) — this class owns parsing and validation only.
 /// </summary>
-public sealed class ClaudeApiClient(HttpClient httpClient)
+public sealed class ClaudeApiClient(IClaudeApiTransport transport)
 {
-    private const string BaseUrl = "https://claude.ai/api";
-
     public async Task<List<AccountInfo>> FetchOrganizationsAsync(
         string sessionKey, CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Get, "/organizations", sessionKey);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        var response = await transport.GetAsync("/organizations", sessionKey, cancellationToken);
+        EnsureSuccess(response);
 
-        var organizations = await response.Content.ReadFromJsonAsync<List<AccountInfo>>(
-            cancellationToken: cancellationToken);
-
+        var organizations = JsonSerializer.Deserialize<List<AccountInfo>>(response.Body);
         if (organizations is null || organizations.Count == 0)
             throw new ClaudeApiException("No organizations found for this account");
 
@@ -35,35 +28,25 @@ public sealed class ClaudeApiClient(HttpClient httpClient)
     public async Task<ClaudeUsage> FetchUsageDataAsync(
         string sessionKey, string organizationId, CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Get, $"/organizations/{organizationId}/usage", sessionKey);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
-
-        var json = await response.Content.ReadAsStringAsync(cancellationToken);
-        return ParseUsageResponse(json);
+        var response = await transport.GetAsync($"/organizations/{organizationId}/usage", sessionKey, cancellationToken);
+        EnsureSuccess(response);
+        return ParseUsageResponse(response.Body);
     }
 
-    private static HttpRequestMessage CreateRequest(HttpMethod method, string path, string sessionKey)
+    private static void EnsureSuccess(ApiResponse response)
     {
-        var request = new HttpRequestMessage(method, BaseUrl + path);
-        request.Headers.Add("Cookie", $"sessionKey={sessionKey}");
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Referrer = new Uri("https://claude.ai");
-        request.Headers.Add("Origin", "https://claude.ai");
-        return request;
-    }
-
-    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
-        if (response.IsSuccessStatusCode)
+        if (response.StatusCode is >= 200 and < 300)
             return;
 
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new ClaudeApiException("Session key is invalid or expired", isUnauthorized: true);
+        var preview = response.Body.Length > 200 ? response.Body[..200] : response.Body;
 
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        var preview = body.Length > 200 ? body[..200] : body;
-        throw new ClaudeApiException($"Claude API returned {(int)response.StatusCode}: {preview}");
+        if (response.StatusCode is 401 or 403)
+        {
+            throw new ClaudeApiException(
+                $"Session key rejected ({response.StatusCode}): {preview}", isUnauthorized: true);
+        }
+
+        throw new ClaudeApiException($"Claude API returned {response.StatusCode}: {preview}");
     }
 
     private static ClaudeUsage ParseUsageResponse(string json)
@@ -96,7 +79,8 @@ public sealed class ClaudeApiClient(HttpClient httpClient)
         if (root.TryGetProperty("seven_day_sonnet", out var sevenDaySonnet))
         {
             sonnetPercentage = ParseUtilization(sevenDaySonnet);
-            if (sevenDaySonnet.TryGetProperty("resets_at", out var resetsAt) &&
+            if (sevenDaySonnet.ValueKind == JsonValueKind.Object &&
+                sevenDaySonnet.TryGetProperty("resets_at", out var resetsAt) &&
                 resetsAt.ValueKind == JsonValueKind.String &&
                 DateTimeOffset.TryParse(resetsAt.GetString(), CultureInfo.InvariantCulture,
                     DateTimeStyles.RoundtripKind, out var parsed))
@@ -118,10 +102,11 @@ public sealed class ClaudeApiClient(HttpClient httpClient)
         };
     }
 
-    /// <summary>Utilization may arrive as an int or a double depending on the endpoint.</summary>
+    /// <summary>Utilization may arrive as an int or a double depending on the endpoint. The period
+    /// itself may be JSON null (e.g. no activity yet in that window) rather than an object.</summary>
     private static double ParseUtilization(JsonElement period)
     {
-        if (!period.TryGetProperty("utilization", out var utilization))
+        if (period.ValueKind != JsonValueKind.Object || !period.TryGetProperty("utilization", out var utilization))
             return 0.0;
 
         return utilization.ValueKind switch
@@ -135,7 +120,8 @@ public sealed class ClaudeApiClient(HttpClient httpClient)
 
     private static DateTimeOffset ParseResetsAt(JsonElement period, DateTimeOffset fallback)
     {
-        if (period.TryGetProperty("resets_at", out var resetsAt) &&
+        if (period.ValueKind == JsonValueKind.Object &&
+            period.TryGetProperty("resets_at", out var resetsAt) &&
             resetsAt.ValueKind == JsonValueKind.String &&
             DateTimeOffset.TryParse(resetsAt.GetString(), CultureInfo.InvariantCulture,
                 DateTimeStyles.RoundtripKind, out var parsed))

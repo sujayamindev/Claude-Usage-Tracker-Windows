@@ -35,6 +35,10 @@ public sealed class TrayIconService : IDisposable
         };
         _taskbarIcon.TrayLeftMouseUp += (_, _) => Clicked?.Invoke(this, EventArgs.Empty);
 
+        // Required when the TaskbarIcon isn't placed in a loaded visual tree/resources (our case,
+        // since it's constructed directly in code) — otherwise the tray icon is never actually created.
+        _taskbarIcon.ForceCreate();
+
         _viewModel.PropertyChanged += (_, _) => Render();
         Render();
     }

@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Windows;
 using ClaudeUsageTracker.Windows.Services;
 using ClaudeUsageTracker.Windows.ViewModels;
@@ -8,18 +7,20 @@ namespace ClaudeUsageTracker.Windows;
 
 public partial class App : Application
 {
-    private readonly HttpClient _httpClient = new();
+    private readonly WebView2ApiTransport _transport = new();
     private ClaudeApiClient _apiClient = null!;
     private UsageViewModel _viewModel = null!;
     private UsagePollingService _pollingService = null!;
     private TrayIconService _trayIconService = null!;
     private PopoverWindow _popoverWindow = null!;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        _apiClient = new ClaudeApiClient(_httpClient);
+        await _transport.InitializeAsync();
+
+        _apiClient = new ClaudeApiClient(_transport);
         _viewModel = new UsageViewModel();
         _pollingService = new UsagePollingService(_apiClient, _viewModel);
         _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(RunSetupFlow);
@@ -83,7 +84,7 @@ public partial class App : Application
     {
         _pollingService?.Dispose();
         _trayIconService?.Dispose();
-        _httpClient.Dispose();
+        _transport.Dispose();
         base.OnExit(e);
     }
 }

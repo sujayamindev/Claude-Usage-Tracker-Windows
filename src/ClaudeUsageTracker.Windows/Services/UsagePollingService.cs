@@ -54,8 +54,9 @@ public sealed class UsagePollingService : IDisposable
             Stop();
             AuthenticationFailed?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.Error.WriteLine($"[UsagePollingService] Poll failed: {ex}");
             // Network failure / malformed response: keep showing the last known-good value.
             _viewModel.MarkStale();
         }
