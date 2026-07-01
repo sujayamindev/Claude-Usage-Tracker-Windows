@@ -11,6 +11,7 @@ namespace ClaudeUsageTracker.Windows.Services;
 public sealed class UsagePollingService : IDisposable
 {
     private readonly ClaudeApiClient _apiClient;
+    private readonly ClaudeStatusService _statusService = new();
     private readonly UsageViewModel _viewModel;
     private readonly DispatcherTimer _timer;
     private string? _sessionKey;
@@ -26,10 +27,11 @@ public sealed class UsagePollingService : IDisposable
         _timer.Tick += async (_, _) => await PollAsync();
     }
 
-    public void Start(string sessionKey, string organizationId)
+    public void Start(string sessionKey, string organizationId, string? organizationName = null)
     {
         _sessionKey = sessionKey;
         _organizationId = organizationId;
+        _viewModel.AccountName = organizationName;
         _timer.Start();
         _ = PollAsync();
     }
@@ -60,7 +62,27 @@ public sealed class UsagePollingService : IDisposable
             // Network failure / malformed response: keep showing the last known-good value.
             _viewModel.MarkStale();
         }
+
+        await PollStatusAsync();
     }
 
-    public void Dispose() => _timer.Stop();
+    private async Task PollStatusAsync()
+    {
+        try
+        {
+            var status = await _statusService.FetchStatusAsync();
+            _viewModel.ApplyStatus(status);
+        }
+        catch (Exception ex)
+        {
+            // Supplementary info only — a failed status fetch shouldn't affect usage polling.
+            Console.Error.WriteLine($"[UsagePollingService] Status poll failed: {ex}");
+        }
+    }
+
+    public void Dispose()
+    {
+        _timer.Stop();
+        _statusService.Dispose();
+    }
 }

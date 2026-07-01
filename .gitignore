@@ -1,4 +1,31 @@
+# Build output
 bin/
 obj/
-*.user
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+
+# Visual Studio / user-specific
 .vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Other IDEs
+.idea/
+.vscode/
+
+# NuGet
+*.nupkg
+project.lock.json
+
+# OS cruft
+Thumbs.db
+.DS_Store
+
+# Project-specific
+.superpowers/
+docs/
+CLAUDE.md

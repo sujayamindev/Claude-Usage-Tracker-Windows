@@ -1,9 +1,11 @@
 using System.Windows;
 using ClaudeUsageTracker.Windows.Services;
+using Wpf.Ui.Appearance;
+using Wpf.Ui.Controls;
 
 namespace ClaudeUsageTracker.Windows.Views;
 
-public partial class SetupWindow : Window
+public partial class SetupWindow : FluentWindow
 {
     private readonly ClaudeApiClient _apiClient;
 
@@ -12,6 +14,7 @@ public partial class SetupWindow : Window
     public SetupWindow(ClaudeApiClient apiClient)
     {
         InitializeComponent();
+        SystemThemeWatcher.Watch(this);
         _apiClient = apiClient;
     }
 
@@ -26,7 +29,7 @@ public partial class SetupWindow : Window
             var organizations = await _apiClient.FetchOrganizationsAsync(sessionKey);
             var organization = organizations[0];
 
-            var credentials = new StoredCredentials(sessionKey, organization.Uuid);
+            var credentials = new StoredCredentials(sessionKey, organization.Uuid, organization.Name);
             CredentialStore.Save(credentials);
 
             Result = credentials;

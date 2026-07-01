@@ -39,7 +39,7 @@ public partial class App : Application
 
         if (CredentialStore.TryLoad(out var credentials) && credentials is not null)
         {
-            _pollingService.Start(credentials.SessionKey, credentials.OrganizationId);
+            _pollingService.Start(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
         }
         else
         {
@@ -71,7 +71,7 @@ public partial class App : Application
         if (connected)
         {
             var credentials = setupWindow.Result!;
-            _pollingService.Start(credentials.SessionKey, credentials.OrganizationId);
+            _pollingService.Start(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
         }
         else if (!CredentialStore.TryLoad(out _))
         {

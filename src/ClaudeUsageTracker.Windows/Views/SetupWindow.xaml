@@ -1,17 +1,22 @@
-<Window x:Class="ClaudeUsageTracker.Windows.Views.SetupWindow"
+<ui:FluentWindow x:Class="ClaudeUsageTracker.Windows.Views.SetupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="Claude Usage Tracker — Setup"
         Width="420" SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize">
-    <StackPanel Margin="20">
-        <TextBlock Text="Connect your Claude account" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
-        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
-                   Text="Paste your Claude.ai session key. You can find it in your browser's DevTools under Application → Cookies → claude.ai → sessionKey."/>
-        <TextBox x:Name="SessionKeyBox" Height="60" TextWrapping="Wrap" AcceptsReturn="True"
-                 VerticalScrollBarVisibility="Auto" Margin="0,0,0,8"/>
-        <TextBlock x:Name="ErrorText" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,8"/>
-        <Button x:Name="ConnectButton" Content="Connect" Height="32" Click="ConnectButton_Click"/>
+        ResizeMode="NoResize"
+        ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <StackPanel>
+        <ui:TitleBar Title="Claude Usage Tracker — Setup"/>
+        <StackPanel Margin="20">
+            <TextBlock Text="Connect your Claude account" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
+                       Text="Paste your Claude.ai session key. You can find it in your browser's DevTools under Application → Cookies → claude.ai → sessionKey."/>
+            <TextBox x:Name="SessionKeyBox" Height="60" TextWrapping="Wrap" AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto" Margin="0,0,0,8"/>
+            <TextBlock x:Name="ErrorText" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <ui:Button x:Name="ConnectButton" Content="Connect" Appearance="Primary" HorizontalAlignment="Stretch" Click="ConnectButton_Click"/>
+        </StackPanel>
     </StackPanel>
-</Window>
+</ui:FluentWindow>
