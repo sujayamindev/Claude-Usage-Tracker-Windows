@@ -13,7 +13,7 @@ Early-stage MVP. Currently supports:
 - A popover with session/weekly/Opus/Sonnet usage bars, reset-time countdowns, a live Claude system status indicator, and organization info
 - Launch-at-Windows-startup toggle
 
-**Not yet implemented** (present in the macOS app, planned or deferred here): multi-profile support, usage history/charts, Claude Code CLI credential sync, global keyboard shortcuts, threshold notifications, CLI OAuth login, API console cost/overage tracking, and installer packaging.
+**Not yet implemented** (present in the macOS app, planned or deferred here): multi-profile support, usage history/charts, Claude Code CLI credential sync, global keyboard shortcuts, threshold notifications, CLI OAuth login, and API console cost/overage tracking.
 
 ## Requirements
 
@@ -45,6 +45,22 @@ Run the built executable at `src/ClaudeUsageTracker.Windows/bin/Debug/net10.0-wi
 ```bash
 dotnet test src/ClaudeUsageTracker.Windows.Tests/ClaudeUsageTracker.Windows.Tests.csproj
 ```
+
+## Building the installer
+
+An Inno Setup script (`installer/setup.iss`) packages a self-contained build into a Windows installer with Start Menu/desktop shortcuts and an uninstaller. Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`ISCC.exe` on your `PATH`).
+
+```bash
+# 1. Publish a self-contained build
+dotnet publish src/ClaudeUsageTracker.Windows/ClaudeUsageTracker.Windows.csproj \
+  -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false \
+  -o installer/publish
+
+# 2. Compile the installer
+ISCC installer/setup.iss
+```
+
+The installer is written to `installer/output/ClaudeUsageTracker-Setup-<version>.exe`. Note: the app requires the Microsoft Edge WebView2 Runtime (bundled with Windows 11; the installer warns if it's missing on Windows 10 and links to the download).
 
 ## Architecture notes
 

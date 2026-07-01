@@ -29,3 +29,7 @@ Thumbs.db
 .superpowers/
 docs/
 CLAUDE.md
+
+# Installer build output
+installer/publish/
+installer/output/
