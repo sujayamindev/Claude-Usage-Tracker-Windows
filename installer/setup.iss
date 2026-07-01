@@ -5,12 +5,16 @@
 ;        dotnet publish src\ClaudeUsageTracker.Windows\ClaudeUsageTracker.Windows.csproj ^
 ;          -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false ^
 ;          -o installer\publish
-;   2. Compile this script (requires Inno Setup 6, https://jrsoftware.org/isinfo.php):
+;   2. Compile this script (requires Inno Setup 6+, https://jrsoftware.org/isinfo.php):
 ;        ISCC installer\setup.iss
+;      Optionally override the version (e.g. from a CI release tag):
+;        ISCC /DMyAppVersion=1.2.3 installer\setup.iss
 ;   The resulting installer is written to installer\output\.
 
 #define MyAppName "Claude Usage Tracker"
-#define MyAppVersion "0.1.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "0.1.0"
+#endif
 #define MyAppPublisher "Claude Usage Tracker contributors"
 #define MyAppExeName "ClaudeUsageTracker.Windows.exe"
 #define MyAppURL "https://github.com/hamed-elfayome/Claude-Usage-Tracker"
