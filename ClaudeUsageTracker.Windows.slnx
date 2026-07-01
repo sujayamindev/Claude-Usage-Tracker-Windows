@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ClaudeUsageTracker.Windows.Tests/ClaudeUsageTracker.Windows.Tests.csproj" />
+    <Project Path="src/ClaudeUsageTracker.Windows/ClaudeUsageTracker.Windows.csproj" />
+  </Folder>
+</Solution>
