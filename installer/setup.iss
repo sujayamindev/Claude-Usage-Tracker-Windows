@@ -31,8 +31,8 @@ SetupIconFile=..\src\ClaudeUsageTracker.Windows\Assets\AppIcon.ico
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-; Single-user, per-machine install; requires elevation.
-PrivilegesRequired=admin
+; Per-user install — no elevation required, so silent auto-updates trigger no UAC prompt.
+PrivilegesRequired=lowest
 OutputDir=output
 OutputBaseFilename=ClaudeUsageTracker-Setup-{#MyAppVersion}
 Compression=lzma2
@@ -59,7 +59,7 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
 
 [UninstallDelete]
 ; Credentials are stored in Windows Credential Manager (not under {app}), so nothing extra to clean there.
