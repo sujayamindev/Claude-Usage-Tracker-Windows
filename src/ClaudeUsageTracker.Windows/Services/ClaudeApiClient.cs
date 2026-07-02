@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Text.Json;
 using ClaudeUsageTracker.Windows.Models;
 
@@ -10,8 +13,11 @@ namespace ClaudeUsageTracker.Windows.Services;
 /// Network calls are delegated to IClaudeApiTransport (see WebView2ApiTransport / spec addendum
 /// for why this can't be a plain HttpClient) — this class owns parsing and validation only.
 /// </summary>
-public sealed class ClaudeApiClient(IClaudeApiTransport transport)
+public sealed class ClaudeApiClient(IClaudeApiTransport transport, HttpClient? cliHttpClient = null)
 {
+    private static readonly Uri CliOAuthMessagesUri = new("https://api.anthropic.com/v1/messages");
+    private readonly HttpClient _cliHttpClient = cliHttpClient ?? new HttpClient();
+
     public async Task<List<AccountInfo>> FetchOrganizationsAsync(
         string sessionKey, CancellationToken cancellationToken = default)
     {
@@ -31,6 +37,95 @@ public sealed class ClaudeApiClient(IClaudeApiTransport transport)
         var response = await transport.GetAsync($"/organizations/{organizationId}/usage", sessionKey, cancellationToken);
         EnsureSuccess(response);
         return ParseUsageResponse(response.Body);
+    }
+
+    /// <summary>
+    /// Fetches usage via Claude Code CLI's OAuth token. There is no dedicated usage-JSON endpoint
+    /// for this auth type (api.anthropic.com/api/oauth/usage is disabled) — this ports the macOS
+    /// app's actual current approach: make a minimal, real Messages API call and read usage out
+    /// of its rate-limit response headers. This means no Opus/Sonnet breakdown is available here
+    /// (those headers don't exist) — ParseUsageFromRateLimitHeaders always zeroes them, matching
+    /// macOS. Uses a plain HttpClient rather than WebView2ApiTransport: the Cloudflare
+    /// bot-fingerprinting problem documented for claude.ai is not expected to apply to Anthropic's
+    /// public developer API, and this needs to be verified manually (see the design spec).
+    /// </summary>
+    public async Task<ClaudeUsage> FetchUsageDataViaCliOAuthAsync(
+        string accessToken, CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, CliOAuthMessagesUri);
+        request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {accessToken}");
+        request.Headers.TryAddWithoutValidation("anthropic-beta", "oauth-2025-04-20");
+        request.Headers.TryAddWithoutValidation("anthropic-version", "2023-06-01");
+        request.Content = JsonContent.Create(new
+        {
+            model = "claude-haiku-4-5-20251001",
+            max_tokens = 1,
+            messages = new[] { new { role = "user", content = "hi" } }
+        });
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _cliHttpClient.SendAsync(request, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new ClaudeApiException($"Failed to reach Anthropic API: {ex.Message}");
+        }
+
+        using (response)
+        {
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            {
+                throw new ClaudeApiException(
+                    $"CLI OAuth token rejected ({(int)response.StatusCode})", isUnauthorized: true);
+            }
+
+            if (!response.IsSuccessStatusCode)
+                throw new ClaudeApiException($"Anthropic API returned {(int)response.StatusCode}");
+
+            return ParseUsageFromRateLimitHeaders(response);
+        }
+    }
+
+    private static ClaudeUsage ParseUsageFromRateLimitHeaders(HttpResponseMessage response)
+    {
+        double? HeaderDouble(string name) =>
+            response.Headers.TryGetValues(name, out var values) &&
+            double.TryParse(values.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : null;
+
+        var sessionUtilization = HeaderDouble("anthropic-ratelimit-unified-5h-utilization") ?? 0.0;
+        var sessionPercentage = sessionUtilization * 100.0;
+
+        var sessionResetSeconds = HeaderDouble("anthropic-ratelimit-unified-5h-reset") ?? 0.0;
+        var sessionResetTime = sessionResetSeconds > 0
+            ? DateTimeOffset.FromUnixTimeSeconds((long)sessionResetSeconds)
+            : DateTimeOffset.Now.AddHours(5);
+
+        if (sessionResetTime < DateTimeOffset.Now)
+            sessionPercentage = 0.0;
+
+        var weeklyUtilization = HeaderDouble("anthropic-ratelimit-unified-7d-utilization") ?? 0.0;
+        var weeklyPercentage = weeklyUtilization * 100.0;
+
+        var weeklyResetSeconds = HeaderDouble("anthropic-ratelimit-unified-7d-reset") ?? 0.0;
+        var weeklyResetTime = weeklyResetSeconds > 0
+            ? DateTimeOffset.FromUnixTimeSeconds((long)weeklyResetSeconds)
+            : DateTimeOffset.Now.AddDays(7);
+
+        return new ClaudeUsage
+        {
+            SessionPercentage = sessionPercentage,
+            SessionResetTime = sessionResetTime,
+            WeeklyPercentage = weeklyPercentage,
+            WeeklyResetTime = weeklyResetTime,
+            OpusWeeklyPercentage = 0.0,
+            SonnetWeeklyPercentage = 0.0,
+            SonnetWeeklyResetTime = null,
+            LastUpdated = DateTimeOffset.Now
+        };
     }
 
     private static void EnsureSuccess(ApiResponse response)

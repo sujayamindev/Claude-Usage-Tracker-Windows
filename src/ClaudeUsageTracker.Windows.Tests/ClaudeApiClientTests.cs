@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http;
 using ClaudeUsageTracker.Windows.Services;
 
 namespace ClaudeUsageTracker.Windows.Tests;
@@ -135,5 +137,81 @@ public class ClaudeApiClientTests
         var client = new ClaudeApiClient(transport);
 
         await Assert.ThrowsAsync<ClaudeApiException>(() => client.FetchOrganizationsAsync("sk-ant-sid01-test-key"));
+    }
+
+    [Fact]
+    public async Task FetchUsageDataViaCliOAuthAsync_ParsesRateLimitHeaders()
+    {
+        var sessionReset = DateTimeOffset.UtcNow.AddHours(2).ToUnixTimeSeconds();
+        var weeklyReset = DateTimeOffset.UtcNow.AddDays(3).ToUnixTimeSeconds();
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, new Dictionary<string, string>
+        {
+            ["anthropic-ratelimit-unified-5h-utilization"] = "0.42",
+            ["anthropic-ratelimit-unified-5h-reset"] = sessionReset.ToString(),
+            ["anthropic-ratelimit-unified-7d-utilization"] = "0.185",
+            ["anthropic-ratelimit-unified-7d-reset"] = weeklyReset.ToString()
+        });
+        var client = new ClaudeApiClient(new FakeApiTransport(200, ""), new HttpClient(handler));
+
+        var usage = await client.FetchUsageDataViaCliOAuthAsync("test-access-token");
+
+        Assert.Equal(42, usage.SessionPercentage);
+        Assert.Equal(18.5, usage.WeeklyPercentage, precision: 5);
+        Assert.Equal(0, usage.OpusWeeklyPercentage);
+        Assert.Equal(0, usage.SonnetWeeklyPercentage);
+        Assert.Null(usage.SonnetWeeklyResetTime);
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(sessionReset), usage.SessionResetTime);
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(weeklyReset), usage.WeeklyResetTime);
+    }
+
+    [Fact]
+    public async Task FetchUsageDataViaCliOAuthAsync_SendsBearerTokenAndOAuthHeaders()
+    {
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, new Dictionary<string, string>());
+        var client = new ClaudeApiClient(new FakeApiTransport(200, ""), new HttpClient(handler));
+
+        await client.FetchUsageDataViaCliOAuthAsync("test-access-token");
+
+        Assert.Equal("https://api.anthropic.com/v1/messages", handler.LastRequest!.RequestUri!.ToString());
+        Assert.Equal("Bearer test-access-token", handler.LastRequest.Headers.GetValues("Authorization").Single());
+        Assert.Equal("oauth-2025-04-20", handler.LastRequest.Headers.GetValues("anthropic-beta").Single());
+    }
+
+    [Fact]
+    public async Task FetchUsageDataViaCliOAuthAsync_DefaultsMissingHeadersToZeroAndFallbackResets()
+    {
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, new Dictionary<string, string>());
+        var client = new ClaudeApiClient(new FakeApiTransport(200, ""), new HttpClient(handler));
+
+        var usage = await client.FetchUsageDataViaCliOAuthAsync("test-access-token");
+
+        Assert.Equal(0, usage.SessionPercentage);
+        Assert.Equal(0, usage.WeeklyPercentage);
+        Assert.True(usage.SessionResetTime > DateTimeOffset.Now);
+        Assert.True(usage.WeeklyResetTime > DateTimeOffset.Now);
+    }
+
+    [Fact]
+    public async Task FetchUsageDataViaCliOAuthAsync_ThrowsUnauthorizedOn401()
+    {
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.Unauthorized);
+        var client = new ClaudeApiClient(new FakeApiTransport(200, ""), new HttpClient(handler));
+
+        var ex = await Assert.ThrowsAsync<ClaudeApiException>(
+            () => client.FetchUsageDataViaCliOAuthAsync("test-access-token"));
+
+        Assert.True(ex.IsUnauthorized);
+    }
+
+    [Fact]
+    public async Task FetchUsageDataViaCliOAuthAsync_ThrowsNonUnauthorizedOn500()
+    {
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.InternalServerError);
+        var client = new ClaudeApiClient(new FakeApiTransport(200, ""), new HttpClient(handler));
+
+        var ex = await Assert.ThrowsAsync<ClaudeApiException>(
+            () => client.FetchUsageDataViaCliOAuthAsync("test-access-token"));
+
+        Assert.False(ex.IsUnauthorized);
     }
 }
