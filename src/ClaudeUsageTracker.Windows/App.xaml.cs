@@ -131,7 +131,18 @@ public partial class App : Application
 
     private async Task InstallUpdateAsync(string downloadUrl)
     {
-        await _updateService.DownloadAndInstallAsync(downloadUrl);
+        try
+        {
+            await _updateService.DownloadAndInstallAsync(downloadUrl);
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => MessageBox.Show(
+                $"Couldn't install the update: {ex.Message}",
+                "Claude Usage Tracker", MessageBoxButton.OK, MessageBoxImage.Warning));
+            return;
+        }
+
         Shutdown();
     }
 
