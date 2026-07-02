@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Interop;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
@@ -42,7 +44,27 @@ public sealed class WebView2ApiTransport : IClaudeApiTransport, IDisposable
             Left = -2000,
             Top = -2000
         };
+
+        // ShowInTaskbar=false only hides this from the taskbar — Alt+Tab is driven by the
+        // WS_EX_TOOLWINDOW/WS_EX_APPWINDOW extended styles, not ShowInTaskbar. Without this,
+        // the hidden host window still shows up (as a blank entry) when Alt+Tabbing.
+        _hostWindow.SourceInitialized += (_, _) =>
+        {
+            var hwnd = new WindowInteropHelper(_hostWindow).Handle;
+            var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, (exStyle | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW);
+        };
     }
+
+    private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_TOOLWINDOW = 0x00000080;
+    private const int WS_EX_APPWINDOW = 0x00040000;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     /// <summary>Must be called once before the first GetAsync — creates the WebView2 environment
     /// and loads claude.ai so subsequent fetch() calls are same-origin.</summary>
