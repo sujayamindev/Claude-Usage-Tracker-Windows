@@ -8,11 +8,13 @@ namespace ClaudeUsageTracker.Windows;
 public partial class App : Application
 {
     private readonly WebView2ApiTransport _transport = new();
+    private readonly UpdateService _updateService = new();
     private ClaudeApiClient _apiClient = null!;
     private UsageViewModel _viewModel = null!;
     private UsagePollingService _pollingService = null!;
     private TrayIconService _trayIconService = null!;
     private PopoverWindow _popoverWindow = null!;
+    private UpdateCheckResult? _pendingUpdateResult;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -36,6 +38,8 @@ public partial class App : Application
         _trayIconService = new TrayIconService(_viewModel);
         _trayIconService.Clicked += (_, _) => OnTrayIconClicked();
         _trayIconService.ExitRequested += (_, _) => Shutdown();
+        _trayIconService.CheckForUpdatesRequested += (_, _) => _ = CheckForUpdatesAsync(interactive: true);
+        _trayIconService.UpdateNotificationClicked += (_, _) => PromptInstallPendingUpdate();
 
         if (CredentialStore.TryLoad(out var credentials) && credentials is not null)
         {
@@ -45,6 +49,8 @@ public partial class App : Application
         {
             RunSetupFlow();
         }
+
+        _ = CheckForUpdatesAsync(interactive: false);
     }
 
     private void OnTrayIconClicked()
@@ -80,11 +86,61 @@ public partial class App : Application
         }
     }
 
+    private async Task CheckForUpdatesAsync(bool interactive)
+    {
+        var result = await _updateService.CheckForUpdateAsync();
+
+        switch (result.Status)
+        {
+            case UpdateCheckStatus.UpdateAvailable:
+                _pendingUpdateResult = result;
+                if (interactive)
+                    Dispatcher.Invoke(PromptInstallPendingUpdate);
+                else
+                    Dispatcher.Invoke(() => _trayIconService.ShowUpdateAvailableNotification(result.LatestVersion!));
+                break;
+
+            case UpdateCheckStatus.UpToDate when interactive:
+                Dispatcher.Invoke(() => MessageBox.Show(
+                    $"You're up to date (v{UpdateService.GetCurrentVersion()}).",
+                    "Claude Usage Tracker", MessageBoxButton.OK, MessageBoxImage.Information));
+                break;
+
+            case UpdateCheckStatus.Error when interactive:
+                Dispatcher.Invoke(() => MessageBox.Show(
+                    $"Couldn't check for updates: {result.ErrorMessage}",
+                    "Claude Usage Tracker", MessageBoxButton.OK, MessageBoxImage.Warning));
+                break;
+        }
+    }
+
+    private void PromptInstallPendingUpdate()
+    {
+        if (_pendingUpdateResult is not { Status: UpdateCheckStatus.UpdateAvailable } result)
+            return;
+
+        var choice = MessageBox.Show(
+            $"Version {result.LatestVersion} is available. Install now?",
+            "Update available", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+        if (choice != MessageBoxResult.Yes)
+            return;
+
+        _ = InstallUpdateAsync(result.DownloadUrl!);
+    }
+
+    private async Task InstallUpdateAsync(string downloadUrl)
+    {
+        await _updateService.DownloadAndInstallAsync(downloadUrl);
+        Shutdown();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _pollingService?.Dispose();
         _trayIconService?.Dispose();
         _transport.Dispose();
+        _updateService.Dispose();
         base.OnExit(e);
     }
 }
