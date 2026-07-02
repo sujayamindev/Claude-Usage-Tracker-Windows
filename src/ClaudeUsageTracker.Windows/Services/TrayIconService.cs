@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using ClaudeUsageTracker.Windows.Models;
 using ClaudeUsageTracker.Windows.ViewModels;
 using H.NotifyIcon;
+using H.NotifyIcon.Core;
 
 namespace ClaudeUsageTracker.Windows.Services;
 
@@ -20,6 +21,8 @@ public sealed class TrayIconService : IDisposable
 
     public event EventHandler? Clicked;
     public event EventHandler? ExitRequested;
+    public event EventHandler? CheckForUpdatesRequested;
+    public event EventHandler? UpdateNotificationClicked;
 
     public TrayIconService(UsageViewModel viewModel)
     {
@@ -28,15 +31,19 @@ public sealed class TrayIconService : IDisposable
         var startupItem = new MenuItem { Header = "Launch at Startup", IsCheckable = true, IsChecked = StartupService.IsEnabled() };
         startupItem.Click += (_, _) => StartupService.SetEnabled(startupItem.IsChecked);
 
+        var checkForUpdatesItem = new MenuItem { Header = "Check for Updates" };
+        checkForUpdatesItem.Click += (_, _) => CheckForUpdatesRequested?.Invoke(this, EventArgs.Empty);
+
         var exitItem = new MenuItem { Header = "Exit" };
         exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
 
         _taskbarIcon = new TaskbarIcon
         {
             ToolTipText = "Claude Usage Tracker",
-            ContextMenu = new ContextMenu { Items = { startupItem, new Separator(), exitItem } }
+            ContextMenu = new ContextMenu { Items = { startupItem, checkForUpdatesItem, new Separator(), exitItem } }
         };
         _taskbarIcon.TrayLeftMouseUp += (_, _) => Clicked?.Invoke(this, EventArgs.Empty);
+        _taskbarIcon.TrayBalloonTipClicked += (_, _) => UpdateNotificationClicked?.Invoke(this, EventArgs.Empty);
 
         // Required when the TaskbarIcon isn't placed in a loaded visual tree/resources (our case,
         // since it's constructed directly in code) — otherwise the tray icon is never actually created.
@@ -45,6 +52,9 @@ public sealed class TrayIconService : IDisposable
         _viewModel.PropertyChanged += (_, _) => Render();
         Render();
     }
+
+    public void ShowUpdateAvailableNotification(string version) =>
+        _taskbarIcon.ShowNotification("Update available", $"Version {version} is available. Click to install.", NotificationIcon.Info);
 
     private void Render()
     {
