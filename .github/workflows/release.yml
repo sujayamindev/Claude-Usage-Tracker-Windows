@@ -30,16 +30,20 @@ jobs:
         run: dotnet test src/ClaudeUsageTracker.Windows.Tests/ClaudeUsageTracker.Windows.Tests.csproj -c Release
 
       - name: Publish self-contained build
+        env:
+          BUILD_VERSION: ${{ steps.version.outputs.version }}
         run: >
           dotnet publish src/ClaudeUsageTracker.Windows/ClaudeUsageTracker.Windows.csproj
           -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false
-          -p:Version=${{ steps.version.outputs.version }}
+          -p:Version=$env:BUILD_VERSION
           -o installer/publish
 
       - name: Compile installer
         shell: cmd
+        env:
+          BUILD_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=${{ steps.version.outputs.version }} installer\setup.iss
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=%BUILD_VERSION% installer\setup.iss
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
