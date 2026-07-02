@@ -62,7 +62,7 @@ public sealed class TrayIconService : IDisposable
 
         using var bitmap = hasError
             ? RenderErrorBitmap(StatusColor(UsageStatusLevel.Critical))
-            : RenderProgressRingBitmap(_viewModel.SessionPercentage, _viewModel.IsStale);
+            : RenderProgressRingBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, StatusColor(_viewModel.SessionStatus));
         var hIcon = bitmap.GetHicon();
         try
         {
@@ -89,7 +89,7 @@ public sealed class TrayIconService : IDisposable
 
     private static readonly Color TrackColor = Color.FromArgb(90, 255, 255, 255);
 
-    private static Bitmap RenderProgressRingBitmap(double sessionPercentage, bool isStale)
+    private static Bitmap RenderProgressRingBitmap(double sessionPercentage, bool isStale, Color arcColor)
     {
         var bitmap = new Bitmap(IconSize, IconSize);
         using var g = Graphics.FromImage(bitmap);
@@ -104,7 +104,7 @@ public sealed class TrayIconService : IDisposable
         var sweepAngle = 360f * (float)Math.Clamp(sessionPercentage / 100.0, 0.0, 1.0);
         if (sweepAngle > 0)
         {
-            using var arcPen = new Pen(Color.White, RingThickness) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round };
+            using var arcPen = new Pen(arcColor, RingThickness) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round };
             // GDI+ angles start at 3 o'clock; rotate start to 12 o'clock (-90) and sweep clockwise.
             g.DrawArc(arcPen, ringRect, -90f, sweepAngle);
         }
