@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using ClaudeUsageTracker.Windows.Models;
 using ClaudeUsageTracker.Windows.ViewModels;
 
 namespace ClaudeUsageTracker.Windows.Services;
@@ -7,31 +8,50 @@ namespace ClaudeUsageTracker.Windows.Services;
 /// Timer-driven background refresh, ported from the 30s menu-bar refresh interval in the
 /// macOS app (Constants.RefreshIntervals.menuBar). Runs on a DispatcherTimer so ViewModel
 /// updates land on the UI thread without manual marshaling.
+///
+/// Supports two credential modes: a manually-configured session key (StartWithSessionKey), or a
+/// Claude Code CLI OAuth fallback (StartWithCliOAuth) used when no session key is configured. The
+/// CLI credentials file is re-read fresh on every poll tick rather than cached, so it stays in
+/// sync with Claude Code's own token refresh and immediately detects a revoked/expired login.
 /// </summary>
 public sealed class UsagePollingService : IDisposable
 {
     private readonly ClaudeApiClient _apiClient;
     private readonly ClaudeStatusService _statusService = new();
     private readonly UsageViewModel _viewModel;
+    private readonly CliCredentialReader _cliCredentialReader;
     private readonly DispatcherTimer _timer;
     private string? _sessionKey;
     private string? _organizationId;
+    private bool _useCliOAuth;
 
     public event EventHandler? AuthenticationFailed;
 
-    public UsagePollingService(ClaudeApiClient apiClient, UsageViewModel viewModel)
+    public UsagePollingService(ClaudeApiClient apiClient, UsageViewModel viewModel, CliCredentialReader cliCredentialReader)
     {
         _apiClient = apiClient;
         _viewModel = viewModel;
+        _cliCredentialReader = cliCredentialReader;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _timer.Tick += async (_, _) => await PollAsync();
     }
 
-    public void Start(string sessionKey, string organizationId, string? organizationName = null)
+    public void StartWithSessionKey(string sessionKey, string organizationId, string? organizationName = null)
     {
+        _useCliOAuth = false;
         _sessionKey = sessionKey;
         _organizationId = organizationId;
         _viewModel.AccountName = organizationName;
+        _timer.Start();
+        _ = PollAsync();
+    }
+
+    public void StartWithCliOAuth()
+    {
+        _useCliOAuth = true;
+        _sessionKey = null;
+        _organizationId = null;
+        _viewModel.AccountName = "Claude Code account";
         _timer.Start();
         _ = PollAsync();
     }
@@ -42,12 +62,31 @@ public sealed class UsagePollingService : IDisposable
 
     private async Task PollAsync()
     {
-        if (_sessionKey is null || _organizationId is null)
-            return;
-
         try
         {
-            var usage = await _apiClient.FetchUsageDataAsync(_sessionKey, _organizationId);
+            ClaudeUsage usage;
+
+            if (_useCliOAuth)
+            {
+                var cliCredentials = _cliCredentialReader.TryRead();
+                if (cliCredentials is null || cliCredentials.IsExpired)
+                {
+                    _viewModel.MarkAuthError();
+                    Stop();
+                    AuthenticationFailed?.Invoke(this, EventArgs.Empty);
+                    return;
+                }
+
+                usage = await _apiClient.FetchUsageDataViaCliOAuthAsync(cliCredentials.AccessToken);
+            }
+            else
+            {
+                if (_sessionKey is null || _organizationId is null)
+                    return;
+
+                usage = await _apiClient.FetchUsageDataAsync(_sessionKey, _organizationId);
+            }
+
             _viewModel.ApplyUsage(usage);
         }
         catch (ClaudeApiException ex) when (ex.IsUnauthorized)
