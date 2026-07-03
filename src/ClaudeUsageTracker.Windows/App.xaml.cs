@@ -1,4 +1,5 @@
 using System.Windows;
+using ClaudeUsageTracker.Windows.Models;
 using ClaudeUsageTracker.Windows.Services;
 using ClaudeUsageTracker.Windows.ViewModels;
 using ClaudeUsageTracker.Windows.Views;
@@ -10,6 +11,8 @@ public partial class App : Application
     private readonly WebView2ApiTransport _transport = new();
     private readonly UpdateService _updateService = new();
     private readonly CliCredentialReader _cliCredentialReader = new();
+    private readonly StatuslineInstaller _statuslineInstaller = new();
+    private readonly StatuslineCache _statuslineCache = new();
     private ClaudeApiClient _apiClient = null!;
     private UsageViewModel _viewModel = null!;
     private UsagePollingService _pollingService = null!;
@@ -21,11 +24,18 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if (e.Args.Contains("--statusline"))
+        {
+            RunStatuslineMode();
+            Shutdown();
+            return;
+        }
+
         await _transport.InitializeAsync();
 
         _apiClient = new ClaudeApiClient(_transport);
         _viewModel = new UsageViewModel();
-        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader);
+        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache);
         _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(RunSetupFlow);
 
         _popoverWindow = new PopoverWindow(_viewModel, _pollingService);
@@ -56,6 +66,13 @@ public partial class App : Application
         }
 
         _ = CheckForUpdatesAsync(interactive: false);
+    }
+
+    private void RunStatuslineMode()
+    {
+        var input = StatuslineInput.TryParse(Console.In.ReadToEnd());
+        var cacheEntry = _statuslineCache.TryRead(TimeSpan.FromSeconds(90));
+        Console.WriteLine(StatuslineFormatter.Format(input, cacheEntry));
     }
 
     private void OnTrayIconClicked()
