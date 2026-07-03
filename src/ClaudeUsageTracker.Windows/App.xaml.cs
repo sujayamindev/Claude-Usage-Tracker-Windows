@@ -36,7 +36,7 @@ public partial class App : Application
         _apiClient = new ClaudeApiClient(_transport);
         _viewModel = new UsageViewModel();
         _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache);
-        _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(RunSetupFlow);
+        _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(() => RunSetupFlow());
 
         _popoverWindow = new PopoverWindow(_viewModel, _pollingService);
         _popoverWindow.SignOutRequested += (_, _) =>
