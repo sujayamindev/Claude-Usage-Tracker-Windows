@@ -1,0 +1,27 @@
+<ui:FluentWindow x:Class="ClaudeUsageTracker.Windows.Views.StatuslineSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="Claude Usage Tracker — Statusline"
+        Icon="/Assets/AppIcon.ico"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <StackPanel>
+        <ui:TitleBar Title="Claude Usage Tracker — Statusline"/>
+        <StackPanel Margin="20">
+            <TextBlock Text="Claude Code statusline" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
+                       Text="Show your Claude usage in Claude Code's terminal statusline, next to the current directory and model."/>
+            <ui:ToggleSwitch x:Name="EnabledToggle" Content="Enable statusline" Margin="0,0,0,12"
+                              Checked="EnabledToggle_Toggled" Unchecked="EnabledToggle_Toggled"/>
+            <TextBlock Text="Preview" FontWeight="Bold" Margin="0,0,0,4"/>
+            <Border Background="#22000000" Padding="8" Margin="0,0,0,8">
+                <TextBlock x:Name="PreviewText" FontFamily="Consolas" TextWrapping="Wrap"/>
+            </Border>
+            <TextBlock x:Name="ErrorText" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <ui:Button x:Name="CloseButton" Content="Close" HorizontalAlignment="Stretch" Click="CloseButton_Click"/>
+        </StackPanel>
+    </StackPanel>
+</ui:FluentWindow>
