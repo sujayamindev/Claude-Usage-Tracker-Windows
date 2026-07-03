@@ -29,6 +29,7 @@ Thumbs.db
 .superpowers/
 docs/
 CLAUDE.md
+FEATURE_PARITY.md
 
 # Installer build output
 installer/publish/
