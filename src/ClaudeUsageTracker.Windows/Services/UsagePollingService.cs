@@ -13,16 +13,24 @@ public sealed class UsagePollingService : IDisposable
     private readonly ClaudeApiClient _apiClient;
     private readonly ClaudeStatusService _statusService = new();
     private readonly UsageViewModel _viewModel;
+    private readonly StatuslineInstaller _statuslineInstaller;
+    private readonly StatuslineCache _statuslineCache;
     private readonly DispatcherTimer _timer;
     private string? _sessionKey;
     private string? _organizationId;
 
     public event EventHandler? AuthenticationFailed;
 
-    public UsagePollingService(ClaudeApiClient apiClient, UsageViewModel viewModel)
+    public UsagePollingService(
+        ClaudeApiClient apiClient,
+        UsageViewModel viewModel,
+        StatuslineInstaller statuslineInstaller,
+        StatuslineCache statuslineCache)
     {
         _apiClient = apiClient;
         _viewModel = viewModel;
+        _statuslineInstaller = statuslineInstaller;
+        _statuslineCache = statuslineCache;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _timer.Tick += async (_, _) => await PollAsync();
     }
@@ -49,6 +57,16 @@ public sealed class UsagePollingService : IDisposable
         {
             var usage = await _apiClient.FetchUsageDataAsync(_sessionKey, _organizationId);
             _viewModel.ApplyUsage(usage);
+
+            try
+            {
+                if (_statuslineInstaller.IsEnabled())
+                    _statuslineCache.Write(usage);
+            }
+            catch (StatuslineSettingsException)
+            {
+                // ~/.claude/settings.json is corrupt; skip the cache write, usage polling continues.
+            }
         }
         catch (ClaudeApiException ex) when (ex.IsUnauthorized)
         {
