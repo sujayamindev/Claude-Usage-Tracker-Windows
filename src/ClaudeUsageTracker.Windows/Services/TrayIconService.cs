@@ -23,6 +23,7 @@ public sealed class TrayIconService : IDisposable
     public event EventHandler? ExitRequested;
     public event EventHandler? CheckForUpdatesRequested;
     public event EventHandler? UpdateNotificationClicked;
+    public event EventHandler? StatuslineSettingsRequested;
 
     public TrayIconService(UsageViewModel viewModel)
     {
@@ -30,6 +31,9 @@ public sealed class TrayIconService : IDisposable
 
         var startupItem = new MenuItem { Header = "Launch at Startup", IsCheckable = true, IsChecked = StartupService.IsEnabled() };
         startupItem.Click += (_, _) => StartupService.SetEnabled(startupItem.IsChecked);
+
+        var statuslineItem = new MenuItem { Header = "Statusline Settings…" };
+        statuslineItem.Click += (_, _) => StatuslineSettingsRequested?.Invoke(this, EventArgs.Empty);
 
         var checkForUpdatesItem = new MenuItem { Header = "Check for Updates" };
         checkForUpdatesItem.Click += (_, _) => CheckForUpdatesRequested?.Invoke(this, EventArgs.Empty);
@@ -40,7 +44,7 @@ public sealed class TrayIconService : IDisposable
         _taskbarIcon = new TaskbarIcon
         {
             ToolTipText = "Claude Usage Tracker",
-            ContextMenu = new ContextMenu { Items = { startupItem, checkForUpdatesItem, new Separator(), exitItem } }
+            ContextMenu = new ContextMenu { Items = { startupItem, statuslineItem, checkForUpdatesItem, new Separator(), exitItem } }
         };
         _taskbarIcon.TrayLeftMouseUp += (_, _) => Clicked?.Invoke(this, EventArgs.Empty);
         _taskbarIcon.TrayBalloonTipClicked += (_, _) => UpdateNotificationClicked?.Invoke(this, EventArgs.Empty);

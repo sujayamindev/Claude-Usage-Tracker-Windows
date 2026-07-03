@@ -51,6 +51,7 @@ public partial class App : Application
         _trayIconService.ExitRequested += (_, _) => Shutdown();
         _trayIconService.CheckForUpdatesRequested += (_, _) => _ = CheckForUpdatesAsync(interactive: true);
         _trayIconService.UpdateNotificationClicked += (_, _) => PromptInstallPendingUpdate();
+        _trayIconService.StatuslineSettingsRequested += (_, _) => OpenStatuslineSettings();
 
         if (CredentialStore.TryLoad(out var credentials) && credentials is not null)
         {
@@ -87,6 +88,12 @@ public partial class App : Application
             _popoverWindow.Hide();
         else
             _popoverWindow.ShowNearTrayIcon();
+    }
+
+    private void OpenStatuslineSettings()
+    {
+        var window = new StatuslineSettingsWindow(_statuslineInstaller, _viewModel);
+        window.ShowDialog();
     }
 
     private void RunSetupFlow()
