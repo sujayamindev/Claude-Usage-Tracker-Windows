@@ -8,10 +8,13 @@ using ClaudeUsageTracker.Windows.Models;
 namespace ClaudeUsageTracker.Windows.Services;
 
 /// <summary>
-/// Ported from the macOS app's ClaudeAPIService. Session-key (cookie) auth only — the CLI OAuth
-/// flow is out of scope for the MVP. Mirrors the response parsing in ClaudeAPIService.parseUsageResponse.
-/// Network calls are delegated to IClaudeApiTransport (see WebView2ApiTransport / spec addendum
-/// for why this can't be a plain HttpClient) — this class owns parsing and validation only.
+/// Ported from the macOS app's ClaudeAPIService. Mirrors the response parsing in
+/// ClaudeAPIService.parseUsageResponse. Session-key requests are delegated to IClaudeApiTransport
+/// (see WebView2ApiTransport / spec addendum for why claude.ai can't be called via a plain
+/// HttpClient) — this class owns parsing and validation for that path. The CLI OAuth fallback
+/// (FetchUsageDataViaCliOAuthAsync) is a separate path that calls api.anthropic.com directly via
+/// a plain HttpClient instead, since that endpoint isn't expected to be behind the same
+/// Cloudflare bot-fingerprinting as claude.ai.
 /// </summary>
 public sealed class ClaudeApiClient(IClaudeApiTransport transport, HttpClient? cliHttpClient = null)
 {
