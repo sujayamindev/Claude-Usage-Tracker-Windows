@@ -71,6 +71,7 @@ public partial class App : Application
 
     private void RunStatuslineMode()
     {
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
         var input = StatuslineInput.TryParse(Console.In.ReadToEnd());
         var cacheEntry = _statuslineCache.TryRead(TimeSpan.FromSeconds(90));
         Console.WriteLine(StatuslineFormatter.Format(input, cacheEntry));
