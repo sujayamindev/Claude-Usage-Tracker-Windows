@@ -48,6 +48,10 @@ public sealed class StatuslineCache(string? cacheFilePath = null)
         {
             return null;
         }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
 
         if (entry is null)
             return null;
