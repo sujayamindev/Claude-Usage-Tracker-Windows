@@ -57,7 +57,7 @@ public partial class App : Application
         {
             _pollingService.StartWithSessionKey(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
         }
-        else if (_cliCredentialReader.TryRead() is { IsExpired: false })
+        else if (await _cliCredentialReader.TryReadWithRetryAsync() is not null)
         {
             _pollingService.StartWithCliOAuth();
         }

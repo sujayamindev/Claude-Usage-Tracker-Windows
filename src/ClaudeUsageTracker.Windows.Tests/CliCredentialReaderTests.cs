@@ -157,4 +157,87 @@ public class CliCredentialReaderTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task TryReadWithRetryAsync_ReturnsImmediatelyOnFirstSuccess()
+    {
+        var expiresAtMs = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeMilliseconds();
+        var json = $$"""{ "claudeAiOauth": { "accessToken": "test-token", "expiresAt": {{expiresAtMs}} } }""";
+        var path = WriteTempCredentialsFile(json);
+
+        try
+        {
+            var reader = new CliCredentialReader(path);
+            var credentials = await reader.TryReadWithRetryAsync(maxAttempts: 3, delayBetweenAttempts: TimeSpan.Zero);
+
+            Assert.NotNull(credentials);
+            Assert.Equal("test-token", credentials!.AccessToken);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task TryReadWithRetryAsync_RecoversWhenFileBecomesValidBeforeLastAttempt()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"claude-credentials-test-{Guid.NewGuid():N}.json");
+        // File does not exist yet — first attempt(s) must fail, then it appears.
+        var reader = new CliCredentialReader(path);
+
+        try
+        {
+            var readTask = Task.Run(async () =>
+            {
+                return await reader.TryReadWithRetryAsync(maxAttempts: 5, delayBetweenAttempts: TimeSpan.FromMilliseconds(50));
+            });
+
+            // Give the retry loop a couple of failed attempts before the file appears.
+            await Task.Delay(120);
+            var expiresAtMs = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeMilliseconds();
+            File.WriteAllText(path, $$"""{ "claudeAiOauth": { "accessToken": "recovered-token", "expiresAt": {{expiresAtMs}} } }""");
+
+            var credentials = await readTask;
+
+            Assert.NotNull(credentials);
+            Assert.Equal("recovered-token", credentials!.AccessToken);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task TryReadWithRetryAsync_ReturnsNullWhenAllAttemptsFail()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"does-not-exist-{Guid.NewGuid():N}.json");
+        var reader = new CliCredentialReader(path);
+
+        var credentials = await reader.TryReadWithRetryAsync(maxAttempts: 3, delayBetweenAttempts: TimeSpan.Zero);
+
+        Assert.Null(credentials);
+    }
+
+    [Fact]
+    public async Task TryReadWithRetryAsync_KeepsRetryingWhenCredentialsAreExpired()
+    {
+        var expiresAtMs = DateTimeOffset.UtcNow.AddMinutes(-5).ToUnixTimeMilliseconds();
+        var json = $$"""{ "claudeAiOauth": { "accessToken": "expired-token", "expiresAt": {{expiresAtMs}} } }""";
+        var path = WriteTempCredentialsFile(json);
+
+        try
+        {
+            var reader = new CliCredentialReader(path);
+            var credentials = await reader.TryReadWithRetryAsync(maxAttempts: 3, delayBetweenAttempts: TimeSpan.Zero);
+
+            Assert.Null(credentials);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

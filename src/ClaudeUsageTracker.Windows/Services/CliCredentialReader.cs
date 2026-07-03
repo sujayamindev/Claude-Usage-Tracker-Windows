@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using ClaudeUsageTracker.Windows.Models;
 
 namespace ClaudeUsageTracker.Windows.Services;
@@ -72,5 +73,25 @@ public sealed class CliCredentialReader(string? credentialsFilePath = null)
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Retries TryRead() a bounded number of times with a delay in between, to smooth over the
+    /// race where Claude Code CLI's credentials file isn't valid yet at the exact instant of a
+    /// one-time startup check (e.g. CLI login/token refresh completing a moment after this app
+    /// launched). Returns the first non-expired result, or null if every attempt comes up empty.
+    /// </summary>
+    public async Task<CliCredentials?> TryReadWithRetryAsync(int maxAttempts = 3, TimeSpan? delayBetweenAttempts = null)
+    {
+        var delay = delayBetweenAttempts ?? TimeSpan.FromMilliseconds(500);
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            if (TryRead() is { IsExpired: false } credentials)
+                return credentials;
+
+            if (attempt < maxAttempts - 1)
+                await Task.Delay(delay);
+        }
+        return null;
     }
 }
