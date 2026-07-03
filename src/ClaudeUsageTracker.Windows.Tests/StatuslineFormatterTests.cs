@@ -57,7 +57,7 @@ public class StatuslineFormatterTests
     {
         var result = StatuslineFormatter.Format(null, SafeCacheEntry());
 
-        Assert.Contains("[", result);
+        Assert.Contains('\x1B', result);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class StatuslineFormatterTests
     {
         var result = StatuslineFormatter.Format(null, SafeCacheEntry(), useAnsiColor: false);
 
-        Assert.DoesNotContain("[", result);
+        Assert.DoesNotContain('\x1B', result);
     }
 
     [Fact]

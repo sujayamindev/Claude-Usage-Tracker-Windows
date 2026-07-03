@@ -9,7 +9,7 @@ namespace ClaudeUsageTracker.Windows.Services;
 /// </summary>
 public static class StatuslineFormatter
 {
-    private const string AnsiReset = "[0m";
+    private const string AnsiReset = "\x1B[0m";
 
     public static string Format(StatuslineInput? input, StatuslineCacheEntry? cacheEntry, bool useAnsiColor = true)
     {
@@ -77,9 +77,9 @@ public static class StatuslineFormatter
 
     private static string AnsiColor(UsageStatusLevel level) => level switch
     {
-        UsageStatusLevel.Safe => "[32m",
-        UsageStatusLevel.Moderate => "[33m",
-        UsageStatusLevel.Critical => "[31m",
+        UsageStatusLevel.Safe => "\x1B[32m",
+        UsageStatusLevel.Moderate => "\x1B[33m",
+        UsageStatusLevel.Critical => "\x1B[31m",
         _ => string.Empty
     };
 }
