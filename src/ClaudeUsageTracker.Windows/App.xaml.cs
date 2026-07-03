@@ -9,6 +9,7 @@ public partial class App : Application
 {
     private readonly WebView2ApiTransport _transport = new();
     private readonly UpdateService _updateService = new();
+    private readonly CliCredentialReader _cliCredentialReader = new();
     private ClaudeApiClient _apiClient = null!;
     private UsageViewModel _viewModel = null!;
     private UsagePollingService _pollingService = null!;
@@ -24,7 +25,7 @@ public partial class App : Application
 
         _apiClient = new ClaudeApiClient(_transport);
         _viewModel = new UsageViewModel();
-        _pollingService = new UsagePollingService(_apiClient, _viewModel);
+        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader);
         _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(RunSetupFlow);
 
         _popoverWindow = new PopoverWindow(_viewModel, _pollingService);
@@ -43,7 +44,11 @@ public partial class App : Application
 
         if (CredentialStore.TryLoad(out var credentials) && credentials is not null)
         {
-            _pollingService.Start(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
+            _pollingService.StartWithSessionKey(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
+        }
+        else if (_cliCredentialReader.TryRead() is { IsExpired: false })
+        {
+            _pollingService.StartWithCliOAuth();
         }
         else
         {
@@ -77,7 +82,7 @@ public partial class App : Application
         if (connected)
         {
             var credentials = setupWindow.Result!;
-            _pollingService.Start(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
+            _pollingService.StartWithSessionKey(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
         }
         else if (!CredentialStore.TryLoad(out _))
         {
