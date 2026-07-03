@@ -43,7 +43,7 @@ public partial class App : Application
         {
             _pollingService.Stop();
             CredentialStore.Clear();
-            RunSetupFlow();
+            RunSetupFlow(watchForCliLogin: false);
         };
 
         _trayIconService = new TrayIconService(_viewModel);
@@ -97,14 +97,18 @@ public partial class App : Application
         window.ShowDialog();
     }
 
-    private void RunSetupFlow()
+    private void RunSetupFlow(bool watchForCliLogin = true)
     {
         _popoverWindow.Hide();
 
-        var setupWindow = new SetupWindow(_apiClient);
-        var connected = setupWindow.ShowDialog() == true && setupWindow.Result is not null;
+        var setupWindow = new SetupWindow(_apiClient, _cliCredentialReader, watchForCliLogin);
+        var shown = setupWindow.ShowDialog() == true;
 
-        if (connected)
+        if (shown && setupWindow.CliLoginDetected)
+        {
+            _pollingService.StartWithCliOAuth();
+        }
+        else if (shown && setupWindow.Result is not null)
         {
             var credentials = setupWindow.Result!;
             _pollingService.StartWithSessionKey(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
