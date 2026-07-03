@@ -62,6 +62,10 @@ public sealed class StatuslineInstaller(string? settingsFilePath = null, string?
         {
             throw new StatuslineSettingsException($"Could not read {_settingsFilePath}: {ex.Message}", ex);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new StatuslineSettingsException($"Could not read {_settingsFilePath}: {ex.Message}", ex);
+        }
 
         if (string.IsNullOrWhiteSpace(json))
             return new JsonObject();
@@ -88,6 +92,10 @@ public sealed class StatuslineInstaller(string? settingsFilePath = null, string?
             File.WriteAllText(_settingsFilePath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (IOException ex)
+        {
+            throw new StatuslineSettingsException($"Could not write {_settingsFilePath}: {ex.Message}", ex);
+        }
+        catch (UnauthorizedAccessException ex)
         {
             throw new StatuslineSettingsException($"Could not write {_settingsFilePath}: {ex.Message}", ex);
         }
