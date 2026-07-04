@@ -69,7 +69,9 @@ public sealed class TrayIconService : IDisposable
     public void ShowThresholdNotification(NotificationEvent notificationEvent)
     {
         var metricLabel = notificationEvent.Metric == NotificationMetric.Session ? "Session" : "Weekly";
-        var soundEnabled = _notificationSettingsStore.Load().SoundEnabled;
+        bool soundEnabled;
+        try { soundEnabled = _notificationSettingsStore.Load().SoundEnabled; }
+        catch (NotificationSettingsException) { soundEnabled = false; }
 
         _taskbarIcon.ShowNotification(
             $"{metricLabel} usage",

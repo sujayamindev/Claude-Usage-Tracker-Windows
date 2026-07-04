@@ -79,7 +79,12 @@ public partial class NotificationSettingsWindow : FluentWindow
         try
         {
             var settings = _settingsStore.Load();
-            var threshold = settings.Thresholds.Single(t => t.Metric == metric && t.Percentage == percentage);
+            var threshold = settings.Thresholds.FirstOrDefault(t => t.Metric == metric && t.Percentage == percentage);
+            if (threshold is null)
+            {
+                LoadAndRender();
+                return;
+            }
             threshold.Enabled = enabled;
             _settingsStore.Save(settings);
         }

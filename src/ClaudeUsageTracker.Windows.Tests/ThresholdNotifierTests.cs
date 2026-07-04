@@ -97,4 +97,23 @@ public class ThresholdNotifierTests
 
         Assert.Empty(events);
     }
+
+    [Fact]
+    public void Evaluate_ReturnsEmptyWhenSettingsStoreThrows()
+    {
+        var path = TempSettingsPath();
+        File.WriteAllText(path, "{ not valid json");
+        try
+        {
+            var notifier = new ThresholdNotifier(new NotificationSettingsStore(path));
+
+            var events = notifier.Evaluate(UsageWith(sessionPercentage: 99, weeklyPercentage: 99));
+
+            Assert.Empty(events);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }
