@@ -18,22 +18,28 @@ public sealed class TrayIconService : IDisposable
 
     private readonly TaskbarIcon _taskbarIcon;
     private readonly UsageViewModel _viewModel;
+    private readonly NotificationSettingsStore _notificationSettingsStore;
 
     public event EventHandler? Clicked;
     public event EventHandler? ExitRequested;
     public event EventHandler? CheckForUpdatesRequested;
     public event EventHandler? UpdateNotificationClicked;
     public event EventHandler? StatuslineSettingsRequested;
+    public event EventHandler? NotificationSettingsRequested;
 
-    public TrayIconService(UsageViewModel viewModel)
+    public TrayIconService(UsageViewModel viewModel, NotificationSettingsStore notificationSettingsStore)
     {
         _viewModel = viewModel;
+        _notificationSettingsStore = notificationSettingsStore;
 
         var startupItem = new MenuItem { Header = "Launch at Startup", IsCheckable = true, IsChecked = StartupService.IsEnabled() };
         startupItem.Click += (_, _) => StartupService.SetEnabled(startupItem.IsChecked);
 
         var statuslineItem = new MenuItem { Header = "Statusline Settings…" };
         statuslineItem.Click += (_, _) => StatuslineSettingsRequested?.Invoke(this, EventArgs.Empty);
+
+        var notificationSettingsItem = new MenuItem { Header = "Notification Settings…" };
+        notificationSettingsItem.Click += (_, _) => NotificationSettingsRequested?.Invoke(this, EventArgs.Empty);
 
         var checkForUpdatesItem = new MenuItem { Header = "Check for Updates" };
         checkForUpdatesItem.Click += (_, _) => CheckForUpdatesRequested?.Invoke(this, EventArgs.Empty);
@@ -44,7 +50,7 @@ public sealed class TrayIconService : IDisposable
         _taskbarIcon = new TaskbarIcon
         {
             ToolTipText = "Claude Usage Tracker",
-            ContextMenu = new ContextMenu { Items = { startupItem, statuslineItem, checkForUpdatesItem, new Separator(), exitItem } }
+            ContextMenu = new ContextMenu { Items = { startupItem, statuslineItem, notificationSettingsItem, checkForUpdatesItem, new Separator(), exitItem } }
         };
         _taskbarIcon.TrayLeftMouseUp += (_, _) => Clicked?.Invoke(this, EventArgs.Empty);
         _taskbarIcon.TrayBalloonTipClicked += (_, _) => UpdateNotificationClicked?.Invoke(this, EventArgs.Empty);
@@ -59,6 +65,18 @@ public sealed class TrayIconService : IDisposable
 
     public void ShowUpdateAvailableNotification(string version) =>
         _taskbarIcon.ShowNotification("Update available", $"Version {version} is available. Click to install.", NotificationIcon.Info);
+
+    public void ShowThresholdNotification(NotificationEvent notificationEvent)
+    {
+        var metricLabel = notificationEvent.Metric == NotificationMetric.Session ? "Session" : "Weekly";
+        var soundEnabled = _notificationSettingsStore.Load().SoundEnabled;
+
+        _taskbarIcon.ShowNotification(
+            $"{metricLabel} usage",
+            $"{metricLabel} usage has reached {notificationEvent.Percentage}%.",
+            NotificationIcon.Warning,
+            sound: soundEnabled);
+    }
 
     private void Render()
     {
