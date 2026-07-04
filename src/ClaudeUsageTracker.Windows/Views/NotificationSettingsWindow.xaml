@@ -4,13 +4,14 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="Claude Usage Tracker — Notifications"
         Icon="/Assets/AppIcon.ico"
-        Width="420" SizeToContent="Height"
+        Width="620" SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
     <StackPanel>
         <ui:TitleBar Title="Claude Usage Tracker — Notifications"/>
-        <StackPanel Margin="20">
+        <StackPanel Margin="20,16,20,20">
+            <!-- Header -->
             <TextBlock Text="Threshold notifications" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
             <TextBlock TextWrapping="Wrap" Margin="0,0,0,12"
                        Text="Get a notification when your session or weekly usage crosses a percentage you choose."/>
@@ -19,21 +20,40 @@
             <ui:ToggleSwitch x:Name="SoundEnabledToggle" Content="Play sound" Margin="0,0,0,16"
                               Checked="SoundEnabledToggle_Toggled" Unchecked="SoundEnabledToggle_Toggled"/>
 
-            <TextBlock Text="Session thresholds" FontWeight="Bold" Margin="0,0,0,4"/>
-            <StackPanel x:Name="SessionThresholdsPanel" Margin="0,0,0,4"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                <TextBox x:Name="SessionNewThresholdInput" Width="60" Margin="0,0,8,0"/>
-                <ui:Button Content="Add" Click="AddSessionThreshold_Click"/>
-            </StackPanel>
+            <!-- Two-column threshold panels -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-            <TextBlock Text="Weekly thresholds" FontWeight="Bold" Margin="0,0,0,4"/>
-            <StackPanel x:Name="WeeklyThresholdsPanel" Margin="0,0,0,4"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                <TextBox x:Name="WeeklyNewThresholdInput" Width="60" Margin="0,0,8,0"/>
-                <ui:Button Content="Add" Click="AddWeeklyThreshold_Click"/>
-            </StackPanel>
+                <!-- Session thresholds (left) -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Session thresholds" FontWeight="Bold" Margin="0,0,0,8"/>
+                    <StackPanel x:Name="SessionThresholdsPanel" Margin="0,0,0,8"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox x:Name="SessionNewThresholdInput" Width="60" Margin="0,0,8,0"/>
+                        <ui:Button Content="Add" Click="AddSessionThreshold_Click"/>
+                    </StackPanel>
+                </StackPanel>
 
-            <TextBlock x:Name="ErrorText" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <!-- Divider -->
+                <Rectangle Grid.Column="1" Width="1" Fill="{DynamicResource ControlStrokeColorDefaultBrush}"
+                           VerticalAlignment="Stretch" Margin="7,0"/>
+
+                <!-- Weekly thresholds (right) -->
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Weekly thresholds" FontWeight="Bold" Margin="0,0,0,8"/>
+                    <StackPanel x:Name="WeeklyThresholdsPanel" Margin="0,0,0,8"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox x:Name="WeeklyNewThresholdInput" Width="60" Margin="0,0,8,0"/>
+                        <ui:Button Content="Add" Click="AddWeeklyThreshold_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock x:Name="ErrorText" Foreground="Red" TextWrapping="Wrap" Margin="0,12,0,8"/>
             <ui:Button x:Name="CloseButton" Content="Close" HorizontalAlignment="Stretch" Click="CloseButton_Click"/>
         </StackPanel>
     </StackPanel>
