@@ -13,6 +13,8 @@ public sealed class NotificationSettingsException(string message, Exception? inn
 /// </summary>
 public sealed class NotificationSettingsStore(string? settingsFilePath = null)
 {
+    private static readonly JsonSerializerOptions _writeOptions = new() { WriteIndented = true };
+
     private readonly string _settingsFilePath = settingsFilePath ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "ClaudeUsageTracker", "notification-settings.json");
@@ -36,9 +38,6 @@ public sealed class NotificationSettingsStore(string? settingsFilePath = null)
             throw new NotificationSettingsException($"Could not read {_settingsFilePath}: {ex.Message}", ex);
         }
 
-        if (string.IsNullOrWhiteSpace(json))
-            return NotificationSettings.CreateDefault();
-
         try
         {
             return JsonSerializer.Deserialize<NotificationSettings>(json) ?? NotificationSettings.CreateDefault();
@@ -52,13 +51,13 @@ public sealed class NotificationSettingsStore(string? settingsFilePath = null)
 
     public void Save(NotificationSettings settings)
     {
-        var directory = Path.GetDirectoryName(_settingsFilePath);
-        if (!string.IsNullOrEmpty(directory))
-            Directory.CreateDirectory(directory);
-
         try
         {
-            File.WriteAllText(_settingsFilePath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            var directory = Path.GetDirectoryName(_settingsFilePath);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            File.WriteAllText(_settingsFilePath, JsonSerializer.Serialize(settings, _writeOptions));
         }
         catch (IOException ex)
         {
