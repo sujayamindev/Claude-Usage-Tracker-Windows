@@ -1,0 +1,46 @@
+<ui:FluentWindow x:Class="ClaudeUsageTracker.Windows.Views.TrayIconStyleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="Claude Usage Tracker — Icon Style"
+        Icon="/Assets/AppIcon.ico"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <StackPanel>
+        <ui:TitleBar Title="Claude Usage Tracker — Icon Style"/>
+        <StackPanel Margin="20,16,20,20">
+            <TextBlock Text="Tray icon style" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+            <TextBlock TextWrapping="Wrap" Margin="0,0,0,16"
+                       Text="Choose how the tray icon displays your session usage."/>
+
+            <RadioButton x:Name="StyleProgressRing" GroupName="IconStyle" Margin="0,0,0,10"
+                         Checked="Style_Checked">
+                <StackPanel>
+                    <TextBlock Text="Progress Ring" FontWeight="SemiBold"/>
+                    <TextBlock Text="Circular arc — default" Opacity="0.6" FontSize="12"/>
+                </StackPanel>
+            </RadioButton>
+
+            <RadioButton x:Name="StyleProgressBar" GroupName="IconStyle" Margin="0,0,0,10"
+                         Checked="Style_Checked">
+                <StackPanel>
+                    <TextBlock Text="Progress Bar" FontWeight="SemiBold"/>
+                    <TextBlock Text="Horizontal fill bar" Opacity="0.6" FontSize="12"/>
+                </StackPanel>
+            </RadioButton>
+
+            <RadioButton x:Name="StyleCompact" GroupName="IconStyle" Margin="0,0,0,16"
+                         Checked="Style_Checked">
+                <StackPanel>
+                    <TextBlock Text="Compact" FontWeight="SemiBold"/>
+                    <TextBlock Text="Minimalist status-color dot" Opacity="0.6" FontSize="12"/>
+                </StackPanel>
+            </RadioButton>
+
+            <TextBlock x:Name="ErrorText" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <ui:Button x:Name="CloseButton" Content="Close" HorizontalAlignment="Stretch" Click="CloseButton_Click"/>
+        </StackPanel>
+    </StackPanel>
+</ui:FluentWindow>

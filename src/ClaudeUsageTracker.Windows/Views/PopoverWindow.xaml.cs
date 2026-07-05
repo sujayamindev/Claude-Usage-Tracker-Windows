@@ -42,8 +42,8 @@ public partial class PopoverWindow : FluentWindow
         AccountNameText.Text = $"Connected as {_viewModel.AccountName}";
         AccountNameText.Visibility = string.IsNullOrWhiteSpace(_viewModel.AccountName) ? Visibility.Collapsed : Visibility.Visible;
 
-        SessionResetText.Text = $"Resets in {FormatTimeRemaining(_viewModel.SessionResetTime - DateTimeOffset.Now)}";
-        WeeklyResetText.Text = $"Resets in {FormatTimeRemaining(_viewModel.WeeklyResetTime - DateTimeOffset.Now)}";
+        SessionResetText.Text = FormatResetLine(_viewModel.SessionResetTime);
+        WeeklyResetText.Text = FormatResetLine(_viewModel.WeeklyResetTime);
 
         SetElapsedTick(SessionTickElapsedColumn, SessionTickRemainingColumn, _viewModel.SessionResetTime, SessionWindowDuration);
         SetElapsedTick(WeeklyTickElapsedColumn, WeeklyTickRemainingColumn, _viewModel.WeeklyResetTime, WeeklyWindowDuration);
@@ -118,6 +118,27 @@ public partial class PopoverWindow : FluentWindow
 
         elapsedColumn.Width = new GridLength(fraction, GridUnitType.Star);
         remainingColumn.Width = new GridLength(1.0 - fraction, GridUnitType.Star);
+    }
+
+    private static string FormatResetLine(DateTimeOffset resetTime)
+    {
+        var remaining = resetTime - DateTimeOffset.Now;
+        var remainingStr = FormatTimeRemaining(remaining);
+
+        var local = resetTime.ToLocalTime();
+        var timeStr = local.ToString("h:mm tt");
+        var today = DateTimeOffset.Now.Date;
+        var resetDate = local.Date;
+
+        string atStr;
+        if (resetDate == today)
+            atStr = timeStr;
+        else if (resetDate == today.AddDays(1))
+            atStr = $"tomorrow {timeStr}";
+        else
+            atStr = $"{local:ddd} {timeStr}";
+
+        return $"Resets in {remainingStr}  ·  {atStr}";
     }
 
     private static string FormatTimeRemaining(TimeSpan remaining)

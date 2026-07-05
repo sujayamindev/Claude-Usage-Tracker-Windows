@@ -22,25 +22,29 @@ public sealed class UsagePollingService : IDisposable
     private readonly CliCredentialReader _cliCredentialReader;
     private readonly StatuslineInstaller _statuslineInstaller;
     private readonly StatuslineCache _statuslineCache;
+    private readonly ThresholdNotifier _thresholdNotifier;
     private readonly DispatcherTimer _timer;
     private string? _sessionKey;
     private string? _organizationId;
     private bool _useCliOAuth;
 
     public event EventHandler? AuthenticationFailed;
+    public event EventHandler<NotificationEvent>? ThresholdCrossed;
 
     public UsagePollingService(
         ClaudeApiClient apiClient,
         UsageViewModel viewModel,
         CliCredentialReader cliCredentialReader,
         StatuslineInstaller statuslineInstaller,
-        StatuslineCache statuslineCache)
+        StatuslineCache statuslineCache,
+        ThresholdNotifier thresholdNotifier)
     {
         _apiClient = apiClient;
         _viewModel = viewModel;
         _cliCredentialReader = cliCredentialReader;
         _statuslineInstaller = statuslineInstaller;
         _statuslineCache = statuslineCache;
+        _thresholdNotifier = thresholdNotifier;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _timer.Tick += async (_, _) => await PollAsync();
     }
@@ -97,6 +101,9 @@ public sealed class UsagePollingService : IDisposable
             }
 
             _viewModel.ApplyUsage(usage);
+
+            foreach (var notificationEvent in _thresholdNotifier.Evaluate(usage))
+                ThresholdCrossed?.Invoke(this, notificationEvent);
 
             try
             {

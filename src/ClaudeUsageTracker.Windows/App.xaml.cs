@@ -13,6 +13,9 @@ public partial class App : Application
     private readonly CliCredentialReader _cliCredentialReader = new();
     private readonly StatuslineInstaller _statuslineInstaller = new();
     private readonly StatuslineCache _statuslineCache = new();
+    private readonly NotificationSettingsStore _notificationSettingsStore = new();
+    private readonly TrayIconSettingsStore _trayIconSettingsStore = new();
+    private ThresholdNotifier _thresholdNotifier = null!;
     private ClaudeApiClient _apiClient = null!;
     private UsageViewModel _viewModel = null!;
     private UsagePollingService _pollingService = null!;
@@ -31,12 +34,15 @@ public partial class App : Application
             return;
         }
 
+        _thresholdNotifier = new ThresholdNotifier(_notificationSettingsStore);
+
         await _transport.InitializeAsync();
 
         _apiClient = new ClaudeApiClient(_transport);
         _viewModel = new UsageViewModel();
-        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache);
+        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache, _thresholdNotifier);
         _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(() => RunSetupFlow());
+        _pollingService.ThresholdCrossed += (_, evt) => Dispatcher.Invoke(() => _trayIconService.ShowThresholdNotification(evt));
 
         _popoverWindow = new PopoverWindow(_viewModel, _pollingService);
         _popoverWindow.SignOutRequested += (_, _) =>
@@ -46,12 +52,14 @@ public partial class App : Application
             RunSetupFlow(watchForCliLogin: false);
         };
 
-        _trayIconService = new TrayIconService(_viewModel);
+        _trayIconService = new TrayIconService(_viewModel, _notificationSettingsStore, _trayIconSettingsStore);
         _trayIconService.Clicked += (_, _) => OnTrayIconClicked();
         _trayIconService.ExitRequested += (_, _) => Shutdown();
         _trayIconService.CheckForUpdatesRequested += (_, _) => _ = CheckForUpdatesAsync(interactive: true);
         _trayIconService.UpdateNotificationClicked += (_, _) => PromptInstallPendingUpdate();
         _trayIconService.StatuslineSettingsRequested += (_, _) => OpenStatuslineSettings();
+        _trayIconService.NotificationSettingsRequested += (_, _) => OpenNotificationSettings();
+        _trayIconService.IconStyleSettingsRequested += (_, _) => OpenIconStyleSettings();
 
         if (CredentialStore.TryLoad(out var credentials) && credentials is not null)
         {
@@ -94,6 +102,18 @@ public partial class App : Application
     private void OpenStatuslineSettings()
     {
         var window = new StatuslineSettingsWindow(_statuslineInstaller, _viewModel);
+        window.ShowDialog();
+    }
+
+    private void OpenNotificationSettings()
+    {
+        var window = new NotificationSettingsWindow(_notificationSettingsStore);
+        window.ShowDialog();
+    }
+
+    private void OpenIconStyleSettings()
+    {
+        var window = new TrayIconStyleWindow(_trayIconSettingsStore, () => _trayIconService.TriggerRender());
         window.ShowDialog();
     }
 
