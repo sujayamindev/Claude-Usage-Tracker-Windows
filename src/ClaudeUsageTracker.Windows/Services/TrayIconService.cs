@@ -16,7 +16,6 @@ namespace ClaudeUsageTracker.Windows.Services;
 public sealed class TrayIconService : IDisposable
 {
     private const int IconSize = 32;
-    private double _lastElapsedFraction;
 
     private readonly TaskbarIcon _taskbarIcon;
     private readonly UsageViewModel _viewModel;
@@ -101,27 +100,22 @@ public sealed class TrayIconService : IDisposable
         var mainColor = ResolveColor(_viewModel.SessionStatus, settings);
 
         PaceStatus? pace = null;
+        double elapsedFraction = 0.0;
         if (settings.ShowPaceMarker)
         {
-            var elapsedFraction = Math.Clamp(
+            elapsedFraction = Math.Clamp(
                 1.0 - (_viewModel.SessionResetTime - DateTimeOffset.Now).TotalHours / 5.0,
                 0.0, 1.0);
             pace = PaceStatusCalculator.Calculate(_viewModel.SessionPercentage, elapsedFraction);
-            // elapsedFraction is stored for passing to renderers
-            _lastElapsedFraction = elapsedFraction;
-        }
-        else
-        {
-            _lastElapsedFraction = 0;
         }
 
         using var bitmap = hasError
-            ? RenderErrorBitmap(ResolveColor(UsageStatusLevel.Critical, settings))
+            ? RenderErrorBitmap(Color.FromArgb(217, 48, 37))
             : settings.Style switch
             {
-                TrayIconStyle.ProgressBar => RenderProgressBarBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, mainColor, pace, settings.ShowPaceMarker, _lastElapsedFraction),
+                TrayIconStyle.ProgressBar => RenderProgressBarBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, mainColor, pace, settings.ShowPaceMarker, elapsedFraction),
                 TrayIconStyle.Compact     => RenderCompactBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, mainColor, pace),
-                _                         => RenderProgressRingBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, mainColor, pace, settings.ShowPaceMarker, _lastElapsedFraction)
+                _                         => RenderProgressRingBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, mainColor, pace, settings.ShowPaceMarker, elapsedFraction)
             };
 
         var hIcon = bitmap.GetHicon();

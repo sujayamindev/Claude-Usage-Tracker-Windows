@@ -16,6 +16,7 @@ public partial class DetachedUsageWindow : FluentWindow
     private readonly UsageViewModel _viewModel;
     private readonly UsagePollingService _pollingService;
     private readonly TrayIconSettingsStore _trayIconSettingsStore;
+    private readonly System.ComponentModel.PropertyChangedEventHandler _propertyChangedHandler;
 
     public event EventHandler? SignOutRequested;
 
@@ -28,7 +29,9 @@ public partial class DetachedUsageWindow : FluentWindow
         _trayIconSettingsStore = trayIconSettingsStore;
         DataContext = viewModel;
 
-        _viewModel.PropertyChanged += (_, _) => Render();
+        _propertyChangedHandler = (_, _) => Render();
+        _viewModel.PropertyChanged += _propertyChangedHandler;
+        Closed += (_, _) => _viewModel.PropertyChanged -= _propertyChangedHandler;
         Render();
     }
 
