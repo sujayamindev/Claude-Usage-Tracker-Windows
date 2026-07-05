@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -60,13 +61,22 @@ public sealed class UpdateService : IDisposable
     {
         try
         {
-            var response = await _httpClient.GetFromJsonAsync<ReleaseResponse>(LatestReleaseUrl, cancellationToken);
+            using var httpResponse = await _httpClient.GetAsync(LatestReleaseUrl, cancellationToken);
+
+            if (httpResponse.StatusCode == HttpStatusCode.Forbidden)
+                return UpdateCheckResult.Failed("GitHub API rate limit reached — try again in an hour.");
+            if (httpResponse.StatusCode == HttpStatusCode.NotFound)
+                return UpdateCheckResult.Failed("No release found on GitHub yet.");
+
+            httpResponse.EnsureSuccessStatusCode();
+
+            var response = await httpResponse.Content.ReadFromJsonAsync<ReleaseResponse>(cancellationToken: cancellationToken);
             if (response is null)
-                return UpdateCheckResult.Failed("Empty response from GitHub");
+                return UpdateCheckResult.Failed("Empty response from GitHub.");
 
             var installerAsset = response.Assets.FirstOrDefault(a => a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
             if (installerAsset is null)
-                return UpdateCheckResult.Failed("No installer asset found in the latest release");
+                return UpdateCheckResult.Failed("No installer asset found in the latest release.");
 
             var version = response.TagName.TrimStart('v', 'V');
             return IsNewerVersion(GetCurrentVersion(), response.TagName)
@@ -75,7 +85,7 @@ public sealed class UpdateService : IDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            return UpdateCheckResult.Failed(ex.Message);
+            return UpdateCheckResult.Failed($"Could not reach GitHub — {ex.Message}");
         }
     }
 
