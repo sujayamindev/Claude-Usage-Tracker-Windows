@@ -21,6 +21,7 @@ public partial class App : Application
     private UsagePollingService _pollingService = null!;
     private TrayIconService _trayIconService = null!;
     private PopoverWindow _popoverWindow = null!;
+    private DetachedUsageWindow? _detachedWindow;
     private UpdateCheckResult? _pendingUpdateResult;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -44,12 +45,30 @@ public partial class App : Application
         _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(() => RunSetupFlow());
         _pollingService.ThresholdCrossed += (_, evt) => Dispatcher.Invoke(() => _trayIconService.ShowThresholdNotification(evt));
 
-        _popoverWindow = new PopoverWindow(_viewModel, _pollingService);
+        _popoverWindow = new PopoverWindow(_viewModel, _pollingService, _trayIconSettingsStore);
         _popoverWindow.SignOutRequested += (_, _) =>
         {
             _pollingService.Stop();
             CredentialStore.Clear();
             RunSetupFlow(watchForCliLogin: false);
+        };
+        _popoverWindow.DetachRequested += (_, _) =>
+        {
+            _popoverWindow.Hide();
+            if (_detachedWindow?.IsVisible == true)
+            {
+                _detachedWindow.Activate();
+                return;
+            }
+            _detachedWindow = new DetachedUsageWindow(_viewModel, _pollingService, _trayIconSettingsStore);
+            _detachedWindow.SignOutRequested += (_, _) =>
+            {
+                _pollingService.Stop();
+                CredentialStore.Clear();
+                RunSetupFlow(watchForCliLogin: false);
+            };
+            _detachedWindow.Closed += (_, _) => _detachedWindow = null;
+            _detachedWindow.Show();
         };
 
         _trayIconService = new TrayIconService(_viewModel, _notificationSettingsStore, _trayIconSettingsStore);
@@ -59,7 +78,7 @@ public partial class App : Application
         _trayIconService.UpdateNotificationClicked += (_, _) => PromptInstallPendingUpdate();
         _trayIconService.StatuslineSettingsRequested += (_, _) => OpenStatuslineSettings();
         _trayIconService.NotificationSettingsRequested += (_, _) => OpenNotificationSettings();
-        _trayIconService.IconStyleSettingsRequested += (_, _) => OpenIconStyleSettings();
+        _trayIconService.IconStyleSettingsRequested += (_, _) => OpenAppearanceSettings();
 
         if (CredentialStore.TryLoad(out var credentials) && credentials is not null)
         {
@@ -111,7 +130,7 @@ public partial class App : Application
         window.ShowDialog();
     }
 
-    private void OpenIconStyleSettings()
+    private void OpenAppearanceSettings()
     {
         var window = new TrayIconStyleWindow(_trayIconSettingsStore, () => _trayIconService.TriggerRender());
         window.ShowDialog();

@@ -42,6 +42,16 @@
                                Visibility="Collapsed"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                    <ui:Button x:Name="PinButton" Appearance="Secondary" ToolTip="Pin — keep open when clicking away"
+                               Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                               Margin="0,0,6,0" Click="PinButton_Click">
+                        <ui:SymbolIcon x:Name="PinIcon" Symbol="Pin24" FontSize="16" Filled="False"/>
+                    </ui:Button>
+                    <ui:Button x:Name="DetachButton" Appearance="Secondary" ToolTip="Detach — open as standalone window"
+                               Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                               Margin="0,0,6,0" Click="DetachButton_Click">
+                        <ui:SymbolIcon Symbol="ArrowExpand24" FontSize="16" Filled="False"/>
+                    </ui:Button>
                     <ui:Button x:Name="SignOutButton" Appearance="Secondary" ToolTip="Sign Out"
                                Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                                Margin="0,0,6,0" Click="SignOutButton_Click">
@@ -63,7 +73,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Session · 5h window" FontSize="12.5" Foreground="#8A8A8E"/>
+                <TextBlock x:Name="SessionLabel" Grid.Column="0" Text="Session · 5h window" FontSize="12.5" Foreground="#8A8A8E"/>
                 <TextBlock x:Name="SessionPercentText" Grid.Column="1" Text="0%" FontSize="13" FontWeight="SemiBold"/>
             </Grid>
             <Grid Height="6" Margin="0,0,0,4">
@@ -85,7 +95,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Weekly" FontSize="12.5" Foreground="#8A8A8E"/>
+                <TextBlock x:Name="WeeklyLabel" Grid.Column="0" Text="Weekly" FontSize="12.5" Foreground="#8A8A8E"/>
                 <TextBlock x:Name="WeeklyPercentText" Grid.Column="1" Text="0%" FontSize="13" FontWeight="SemiBold"/>
             </Grid>
             <Grid Height="6" Margin="0,0,0,4">

@@ -16,15 +16,19 @@ public partial class PopoverWindow : FluentWindow
 
     private readonly UsageViewModel _viewModel;
     private readonly UsagePollingService _pollingService;
+    private readonly TrayIconSettingsStore _trayIconSettingsStore;
+    private bool _isPinned;
 
     public event EventHandler? SignOutRequested;
+    public event EventHandler? DetachRequested;
 
-    public PopoverWindow(UsageViewModel viewModel, UsagePollingService pollingService)
+    public PopoverWindow(UsageViewModel viewModel, UsagePollingService pollingService, TrayIconSettingsStore trayIconSettingsStore)
     {
         InitializeComponent();
         SystemThemeWatcher.Watch(this, WindowBackdropType.Acrylic, updateAccents: true);
         _viewModel = viewModel;
         _pollingService = pollingService;
+        _trayIconSettingsStore = trayIconSettingsStore;
         DataContext = viewModel;
 
         _viewModel.PropertyChanged += (_, _) => Render();
@@ -33,17 +37,40 @@ public partial class PopoverWindow : FluentWindow
 
     private void Render()
     {
+        bool showRemaining = false;
+        try { showRemaining = _trayIconSettingsStore.Load().ShowRemainingPercentage; }
+        catch (TrayIconSettingsException) { }
+
         SessionBar.Value = _viewModel.SessionPercentage;
-        SessionPercentText.Text = $"{_viewModel.SessionPercentage:0}%";
-        WeeklyBar.Value = _viewModel.WeeklyPercentage;
-        WeeklyPercentText.Text = $"{_viewModel.WeeklyPercentage:0}%";
+        WeeklyBar.Value  = _viewModel.WeeklyPercentage;
         StaleBanner.Visibility = _viewModel.IsStale ? Visibility.Visible : Visibility.Collapsed;
 
         AccountNameText.Text = $"Connected as {_viewModel.AccountName}";
-        AccountNameText.Visibility = string.IsNullOrWhiteSpace(_viewModel.AccountName) ? Visibility.Collapsed : Visibility.Visible;
+        AccountNameText.Visibility = string.IsNullOrWhiteSpace(_viewModel.AccountName)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        if (showRemaining)
+        {
+            SessionPercentText.Text = $"{100 - _viewModel.SessionPercentage:0}%";
+            WeeklyPercentText.Text  = $"{100 - _viewModel.WeeklyPercentage:0}%";
+            SessionLabel.Text = "Session · 5h window · remaining";
+            WeeklyLabel.Text  = "Weekly · remaining";
+            OpusPercentText.Text   = $"{100 - _viewModel.OpusWeeklyPercentage:0}%";
+            SonnetPercentText.Text = $"{100 - _viewModel.SonnetWeeklyPercentage:0}%";
+        }
+        else
+        {
+            SessionPercentText.Text = $"{_viewModel.SessionPercentage:0}%";
+            WeeklyPercentText.Text  = $"{_viewModel.WeeklyPercentage:0}%";
+            SessionLabel.Text = "Session · 5h window";
+            WeeklyLabel.Text  = "Weekly";
+            OpusPercentText.Text   = $"{_viewModel.OpusWeeklyPercentage:0}%";
+            SonnetPercentText.Text = $"{_viewModel.SonnetWeeklyPercentage:0}%";
+        }
 
         SessionResetText.Text = FormatResetLine(_viewModel.SessionResetTime);
-        WeeklyResetText.Text = FormatResetLine(_viewModel.WeeklyResetTime);
+        WeeklyResetText.Text  = FormatResetLine(_viewModel.WeeklyResetTime);
 
         SetElapsedTick(SessionTickElapsedColumn, SessionTickRemainingColumn, _viewModel.SessionResetTime, SessionWindowDuration);
         SetElapsedTick(WeeklyTickElapsedColumn, WeeklyTickRemainingColumn, _viewModel.WeeklyResetTime, WeeklyWindowDuration);
@@ -51,13 +78,11 @@ public partial class PopoverWindow : FluentWindow
         var minutesAgo = (int)(DateTimeOffset.Now - _viewModel.LastUpdatedAt).TotalMinutes;
         LastUpdatedText.Text = minutesAgo <= 0 ? "Updated just now" : $"Updated {minutesAgo}m ago";
 
-        OpusRow.Visibility = _viewModel.OpusWeeklyPercentage > 0 ? Visibility.Visible : Visibility.Collapsed;
-        OpusBar.Value = _viewModel.OpusWeeklyPercentage;
-        OpusPercentText.Text = $"{_viewModel.OpusWeeklyPercentage:0}%";
+        OpusRow.Visibility   = _viewModel.OpusWeeklyPercentage   > 0 ? Visibility.Visible : Visibility.Collapsed;
+        OpusBar.Value        = _viewModel.OpusWeeklyPercentage;
 
         SonnetRow.Visibility = _viewModel.SonnetWeeklyPercentage > 0 ? Visibility.Visible : Visibility.Collapsed;
-        SonnetBar.Value = _viewModel.SonnetWeeklyPercentage;
-        SonnetPercentText.Text = $"{_viewModel.SonnetWeeklyPercentage:0}%";
+        SonnetBar.Value      = _viewModel.SonnetWeeklyPercentage;
 
         RenderInsight();
         RenderStatus();
@@ -71,11 +96,11 @@ public partial class PopoverWindow : FluentWindow
 
         StatusDot.Fill = _viewModel.StatusIndicator switch
         {
-            ClaudeStatusIndicator.None => new SolidColorBrush(Color.FromRgb(52, 168, 83)),
-            ClaudeStatusIndicator.Minor => new SolidColorBrush(Color.FromRgb(251, 200, 0)),
-            ClaudeStatusIndicator.Major => new SolidColorBrush(Color.FromRgb(251, 140, 0)),
+            ClaudeStatusIndicator.None     => new SolidColorBrush(Color.FromRgb(52, 168, 83)),
+            ClaudeStatusIndicator.Minor    => new SolidColorBrush(Color.FromRgb(251, 200, 0)),
+            ClaudeStatusIndicator.Major    => new SolidColorBrush(Color.FromRgb(251, 140, 0)),
             ClaudeStatusIndicator.Critical => new SolidColorBrush(Color.FromRgb(217, 48, 37)),
-            _ => Brushes.Gray
+            _                              => Brushes.Gray
         };
     }
 
@@ -105,7 +130,7 @@ public partial class PopoverWindow : FluentWindow
             color = Brushes.Transparent;
         }
 
-        InsightText.Text = text ?? string.Empty;
+        InsightText.Text       = text ?? string.Empty;
         InsightText.Foreground = color;
         InsightText.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -115,8 +140,7 @@ public partial class PopoverWindow : FluentWindow
         var windowStart = resetTime - windowDuration;
         var elapsed = DateTimeOffset.Now - windowStart;
         var fraction = Math.Clamp(elapsed.TotalSeconds / windowDuration.TotalSeconds, 0.0, 1.0);
-
-        elapsedColumn.Width = new GridLength(fraction, GridUnitType.Star);
+        elapsedColumn.Width   = new GridLength(fraction, GridUnitType.Star);
         remainingColumn.Width = new GridLength(1.0 - fraction, GridUnitType.Star);
     }
 
@@ -124,7 +148,6 @@ public partial class PopoverWindow : FluentWindow
     {
         var remaining = resetTime - DateTimeOffset.Now;
         var remainingStr = FormatTimeRemaining(remaining);
-
         var local = resetTime.ToLocalTime();
         var timeStr = local.ToString("h:mm tt");
         var today = DateTimeOffset.Now.Date;
@@ -143,12 +166,8 @@ public partial class PopoverWindow : FluentWindow
 
     private static string FormatTimeRemaining(TimeSpan remaining)
     {
-        if (remaining <= TimeSpan.Zero)
-            return "soon";
-
-        if (remaining.TotalDays >= 1)
-            return $"{(int)remaining.TotalDays}d {remaining.Hours}h";
-
+        if (remaining <= TimeSpan.Zero) return "soon";
+        if (remaining.TotalDays >= 1) return $"{(int)remaining.TotalDays}d {remaining.Hours}h";
         return remaining.TotalHours >= 1
             ? $"{(int)remaining.TotalHours}h {remaining.Minutes}m"
             : $"{remaining.Minutes}m";
@@ -157,19 +176,35 @@ public partial class PopoverWindow : FluentWindow
     private void StatusLinkText_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e) =>
         Process.Start(new ProcessStartInfo("https://status.claude.com") { UseShellExecute = true });
 
-    /// <summary>Anchors near the bottom-right of the work area, where the tray typically sits.</summary>
     public void ShowNearTrayIcon()
     {
+        _isPinned = false;
+        PinIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.Pin24;
+
         Opacity = 0;
         Show();
         UpdateLayout();
 
         var workArea = SystemParameters.WorkArea;
         Left = workArea.Right - Width - 12;
-        Top = workArea.Bottom - ActualHeight - 56;
+        Top  = workArea.Bottom - ActualHeight - 56;
 
         Opacity = 1;
         Activate();
+    }
+
+    private void PinButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isPinned = !_isPinned;
+        PinIcon.Symbol = _isPinned
+            ? Wpf.Ui.Controls.SymbolRegular.PinOff24
+            : Wpf.Ui.Controls.SymbolRegular.Pin24;
+    }
+
+    private void DetachButton_Click(object sender, RoutedEventArgs e)
+    {
+        Hide();
+        DetachRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) =>
@@ -181,5 +216,8 @@ public partial class PopoverWindow : FluentWindow
         SignOutRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private void PopoverWindow_Deactivated(object? sender, EventArgs e) => Hide();
+    private void PopoverWindow_Deactivated(object? sender, EventArgs e)
+    {
+        if (!_isPinned) Hide();
+    }
 }
