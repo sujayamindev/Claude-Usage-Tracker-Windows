@@ -16,6 +16,7 @@ namespace ClaudeUsageTracker.Windows.Services;
 public sealed class TrayIconService : IDisposable
 {
     private const int IconSize = 32;
+    private double _lastElapsedFraction;
 
     private readonly TaskbarIcon _taskbarIcon;
     private readonly UsageViewModel _viewModel;
@@ -93,17 +94,34 @@ public sealed class TrayIconService : IDisposable
     {
         var hasError = _viewModel.HasAuthError;
 
-        TrayIconStyle style = TrayIconStyle.ProgressRing;
-        try { style = _trayIconSettingsStore.Load().Style; }
+        var settings = TrayIconSettings.CreateDefault();
+        try { settings = _trayIconSettingsStore.Load(); }
         catch (TrayIconSettingsException) { }
 
+        var mainColor = ResolveColor(_viewModel.SessionStatus, settings);
+
+        PaceStatus? pace = null;
+        if (settings.ShowPaceMarker)
+        {
+            var elapsedFraction = Math.Clamp(
+                1.0 - (_viewModel.SessionResetTime - DateTimeOffset.Now).TotalHours / 5.0,
+                0.0, 1.0);
+            pace = PaceStatusCalculator.Calculate(_viewModel.SessionPercentage, elapsedFraction);
+            // elapsedFraction is stored for passing to renderers
+            _lastElapsedFraction = elapsedFraction;
+        }
+        else
+        {
+            _lastElapsedFraction = 0;
+        }
+
         using var bitmap = hasError
-            ? RenderErrorBitmap(StatusColor(UsageStatusLevel.Critical))
-            : style switch
+            ? RenderErrorBitmap(ResolveColor(UsageStatusLevel.Critical, settings))
+            : settings.Style switch
             {
-                TrayIconStyle.ProgressBar => RenderProgressBarBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, StatusColor(_viewModel.SessionStatus)),
-                TrayIconStyle.Compact     => RenderCompactBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, StatusColor(_viewModel.SessionStatus)),
-                _                         => RenderProgressRingBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, StatusColor(_viewModel.SessionStatus))
+                TrayIconStyle.ProgressBar => RenderProgressBarBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, mainColor, pace, settings.ShowPaceMarker, _lastElapsedFraction),
+                TrayIconStyle.Compact     => RenderCompactBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, mainColor, pace),
+                _                         => RenderProgressRingBitmap(_viewModel.SessionPercentage, _viewModel.IsStale, mainColor, pace, settings.ShowPaceMarker, _lastElapsedFraction)
             };
 
         var hIcon = bitmap.GetHicon();
@@ -119,9 +137,20 @@ public sealed class TrayIconService : IDisposable
             DestroyIcon(hIcon);
         }
 
-        _taskbarIcon.ToolTipText = hasError
-            ? "Claude Usage Tracker — session key expired, click to reconnect"
-            : $"Claude Usage Tracker — Session {_viewModel.SessionPercentage:0}% · Weekly {_viewModel.WeeklyPercentage:0}%";
+        if (hasError)
+        {
+            _taskbarIcon.ToolTipText = "Claude Usage Tracker — session key expired, click to reconnect";
+        }
+        else if (settings.ShowRemainingPercentage)
+        {
+            var sRem = 100 - _viewModel.SessionPercentage;
+            var wRem = 100 - _viewModel.WeeklyPercentage;
+            _taskbarIcon.ToolTipText = $"Claude Usage Tracker — Session {sRem:0}% remaining · Weekly {wRem:0}% remaining";
+        }
+        else
+        {
+            _taskbarIcon.ToolTipText = $"Claude Usage Tracker — Session {_viewModel.SessionPercentage:0}% · Weekly {_viewModel.WeeklyPercentage:0}%";
+        }
     }
 
     // --- Progress Ring (default) ---
@@ -132,7 +161,7 @@ public sealed class TrayIconService : IDisposable
     private const float RingThickness = 6f;
     private static readonly Color TrackColor = Color.FromArgb(90, 255, 255, 255);
 
-    private static Bitmap RenderProgressRingBitmap(double sessionPercentage, bool isStale, Color arcColor)
+    private static Bitmap RenderProgressRingBitmap(double sessionPercentage, bool isStale, Color arcColor, PaceStatus? pace, bool showPaceMarker, double elapsedFraction)
     {
         var bitmap = new Bitmap(IconSize, IconSize);
         using var g = Graphics.FromImage(bitmap);
@@ -152,12 +181,28 @@ public sealed class TrayIconService : IDisposable
             g.DrawArc(arcPen, ringRect, -90f, sweepAngle);
         }
 
+        if (showPaceMarker)
+        {
+            float cx = IconSize / 2f;
+            float cy = IconSize / 2f;
+            float radius = (IconSize - 2 * RingPadding) / 2f;
+            float angleDeg = -90f + (float)(elapsedFraction * 360.0);
+            float angleRad = angleDeg * (float)Math.PI / 180f;
+            float innerR = radius - 2f;
+            float outerR = radius + 2f;
+            var innerPt = new PointF(cx + innerR * (float)Math.Cos(angleRad), cy + innerR * (float)Math.Sin(angleRad));
+            var outerPt = new PointF(cx + outerR * (float)Math.Cos(angleRad), cy + outerR * (float)Math.Sin(angleRad));
+            var tickColor = pace.HasValue ? PaceColor(pace.Value) : Color.White;
+            using var tickPen = new Pen(tickColor, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            g.DrawLine(tickPen, innerPt, outerPt);
+        }
+
         DrawStaleDot(g, isStale);
         return bitmap;
     }
 
     // --- Progress Bar ---
-    private static Bitmap RenderProgressBarBitmap(double sessionPercentage, bool isStale, Color fillColor)
+    private static Bitmap RenderProgressBarBitmap(double sessionPercentage, bool isStale, Color fillColor, PaceStatus? pace, bool showPaceMarker, double elapsedFraction)
     {
         var bitmap = new Bitmap(IconSize, IconSize);
         using var g = Graphics.FromImage(bitmap);
@@ -180,12 +225,20 @@ public sealed class TrayIconService : IDisposable
             g.ResetClip();
         }
 
+        if (showPaceMarker)
+        {
+            float tickX = barLeft + barWidth * (float)Math.Clamp(elapsedFraction, 0.0, 1.0);
+            var tickColor = pace.HasValue ? PaceColor(pace.Value) : Color.White;
+            using var tickPen = new Pen(tickColor, 2f);
+            g.DrawLine(tickPen, tickX, barTop, tickX, barTop + barHeight);
+        }
+
         DrawStaleDot(g, isStale);
         return bitmap;
     }
 
     // --- Compact ---
-    private static Bitmap RenderCompactBitmap(double sessionPercentage, bool isStale, Color dotColor)
+    private static Bitmap RenderCompactBitmap(double sessionPercentage, bool isStale, Color dotColor, PaceStatus? pace)
     {
         var bitmap = new Bitmap(IconSize, IconSize);
         using var g = Graphics.FromImage(bitmap);
@@ -196,6 +249,15 @@ public sealed class TrayIconService : IDisposable
         const float dotOffset = (IconSize - dotSize) / 2f;
         using (var dotBrush = new SolidBrush(dotColor))
             g.FillEllipse(dotBrush, dotOffset, dotOffset, dotSize, dotSize);
+
+        if (pace.HasValue)
+        {
+            const float paceDotSize = 4f;
+            const float paceDotX = dotOffset + dotSize + 2f;
+            float paceDotY = dotOffset + (dotSize - paceDotSize) / 2f;
+            using var paceBrush = new SolidBrush(PaceColor(pace.Value));
+            g.FillEllipse(paceBrush, paceDotX, paceDotY, paceDotSize, paceDotSize);
+        }
 
         DrawStaleDot(g, isStale);
         return bitmap;
@@ -255,12 +317,35 @@ public sealed class TrayIconService : IDisposable
         g.DrawPath(pen, path);
     }
 
-    private static Color StatusColor(UsageStatusLevel level) => level switch
+    private static Color ResolveColor(UsageStatusLevel level, TrayIconSettings settings) =>
+        settings.ColorMode switch
+        {
+            TrayIconColorMode.Monochrome  => Color.White,
+            TrayIconColorMode.SingleColor => ParseHexColor(settings.SingleColorHex),
+            _ => level switch
+            {
+                UsageStatusLevel.Safe     => Color.FromArgb(52, 168, 83),
+                UsageStatusLevel.Moderate => Color.FromArgb(251, 140, 0),
+                UsageStatusLevel.Critical => Color.FromArgb(217, 48, 37),
+                _                         => Color.Gray
+            }
+        };
+
+    private static Color ParseHexColor(string hex)
     {
-        UsageStatusLevel.Safe => Color.FromArgb(52, 168, 83),
-        UsageStatusLevel.Moderate => Color.FromArgb(251, 140, 0),
-        UsageStatusLevel.Critical => Color.FromArgb(217, 48, 37),
-        _ => Color.Gray
+        try { return System.Drawing.ColorTranslator.FromHtml(hex); }
+        catch { return Color.DeepSkyBlue; }
+    }
+
+    private static Color PaceColor(PaceStatus status) => status switch
+    {
+        PaceStatus.Comfortable => Color.FromArgb(52, 168, 83),
+        PaceStatus.OnTrack     => Color.FromArgb(0, 128, 128),
+        PaceStatus.Warming     => Color.FromArgb(251, 200, 0),
+        PaceStatus.Pressing    => Color.FromArgb(251, 140, 0),
+        PaceStatus.Critical    => Color.FromArgb(217, 48, 37),
+        PaceStatus.Runaway     => Color.FromArgb(136, 0, 170),
+        _                      => Color.Gray
     };
 
     [DllImport("user32.dll")]
