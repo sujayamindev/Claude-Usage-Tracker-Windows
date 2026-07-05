@@ -14,6 +14,7 @@ public partial class App : Application
     private readonly StatuslineInstaller _statuslineInstaller = new();
     private readonly StatuslineCache _statuslineCache = new();
     private readonly NotificationSettingsStore _notificationSettingsStore = new();
+    private readonly TrayIconSettingsStore _trayIconSettingsStore = new();
     private ThresholdNotifier _thresholdNotifier = null!;
     private ClaudeApiClient _apiClient = null!;
     private UsageViewModel _viewModel = null!;
@@ -51,13 +52,14 @@ public partial class App : Application
             RunSetupFlow(watchForCliLogin: false);
         };
 
-        _trayIconService = new TrayIconService(_viewModel, _notificationSettingsStore);
+        _trayIconService = new TrayIconService(_viewModel, _notificationSettingsStore, _trayIconSettingsStore);
         _trayIconService.Clicked += (_, _) => OnTrayIconClicked();
         _trayIconService.ExitRequested += (_, _) => Shutdown();
         _trayIconService.CheckForUpdatesRequested += (_, _) => _ = CheckForUpdatesAsync(interactive: true);
         _trayIconService.UpdateNotificationClicked += (_, _) => PromptInstallPendingUpdate();
         _trayIconService.StatuslineSettingsRequested += (_, _) => OpenStatuslineSettings();
         _trayIconService.NotificationSettingsRequested += (_, _) => OpenNotificationSettings();
+        _trayIconService.IconStyleSettingsRequested += (_, _) => OpenIconStyleSettings();
 
         if (CredentialStore.TryLoad(out var credentials) && credentials is not null)
         {
@@ -106,6 +108,12 @@ public partial class App : Application
     private void OpenNotificationSettings()
     {
         var window = new NotificationSettingsWindow(_notificationSettingsStore);
+        window.ShowDialog();
+    }
+
+    private void OpenIconStyleSettings()
+    {
+        var window = new TrayIconStyleWindow(_trayIconSettingsStore, () => _trayIconService.TriggerRender());
         window.ShowDialog();
     }
 
