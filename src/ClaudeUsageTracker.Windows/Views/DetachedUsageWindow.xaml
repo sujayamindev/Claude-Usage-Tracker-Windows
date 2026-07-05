@@ -1,0 +1,146 @@
+<ui:FluentWindow x:Class="ClaudeUsageTracker.Windows.Views.DetachedUsageWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:ClaudeUsageTracker.Windows.Views"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="Claude Usage"
+        Icon="/Assets/AppIcon.ico"
+        Width="320" SizeToContent="Height"
+        MinWidth="280"
+        ShowInTaskbar="True"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterScreen"
+        ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <ui:FluentWindow.Resources>
+        <local:StatusToBrushConverter x:Key="StatusToBrushConverter"/>
+        <Style TargetType="ProgressBar">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid ClipToBounds="True">
+                            <Border Background="#33FFFFFF" CornerRadius="3"/>
+                            <Border x:Name="PART_Track" Background="Transparent"/>
+                            <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}"
+                                    CornerRadius="3" HorizontalAlignment="Left"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ui:FluentWindow.Resources>
+    <StackPanel>
+        <ui:TitleBar Title="Claude Usage"/>
+        <StackPanel Margin="20,12,20,20">
+
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock x:Name="AccountNameText" Text="" FontSize="11" Foreground="#8A8A8E"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                    <ui:Button x:Name="SignOutButton" Appearance="Secondary" ToolTip="Sign Out"
+                               Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                               Margin="0,0,6,0" Click="SignOutButton_Click">
+                        <ui:SymbolIcon Symbol="SignOut24" FontSize="16" Filled="False"/>
+                    </ui:Button>
+                    <ui:Button x:Name="RefreshButton" Appearance="Secondary" ToolTip="Refresh"
+                               Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                               Click="RefreshButton_Click">
+                        <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="16" Filled="False"/>
+                    </ui:Button>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock x:Name="StaleBanner" Text="Showing last known values — refresh failed"
+                       Foreground="#B26A00" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
+
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="SessionLabel" Grid.Column="0" Text="Session · 5h window" FontSize="12.5" Foreground="#8A8A8E"/>
+                <TextBlock x:Name="SessionPercentText" Grid.Column="1" Text="0%" FontSize="13" FontWeight="SemiBold"/>
+            </Grid>
+            <Grid Height="6" Margin="0,0,0,4">
+                <ProgressBar x:Name="SessionBar" Minimum="0" Maximum="100"
+                             Foreground="{Binding SessionStatus, Converter={StaticResource StatusToBrushConverter}}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="SessionTickElapsedColumn" Width="0*"/>
+                        <ColumnDefinition Width="4"/>
+                        <ColumnDefinition x:Name="SessionTickRemainingColumn" Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="1" Background="#CCFFFFFF" Width="2" HorizontalAlignment="Center"/>
+                </Grid>
+            </Grid>
+            <TextBlock x:Name="SessionResetText" Text="" FontSize="10.5" Foreground="#8A8A8E" Margin="0,0,0,16"/>
+
+            <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="WeeklyLabel" Grid.Column="0" Text="Weekly" FontSize="12.5" Foreground="#8A8A8E"/>
+                <TextBlock x:Name="WeeklyPercentText" Grid.Column="1" Text="0%" FontSize="13" FontWeight="SemiBold"/>
+            </Grid>
+            <Grid Height="6" Margin="0,0,0,4">
+                <ProgressBar x:Name="WeeklyBar" Minimum="0" Maximum="100"
+                             Foreground="{Binding WeeklyStatus, Converter={StaticResource StatusToBrushConverter}}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="WeeklyTickElapsedColumn" Width="0*"/>
+                        <ColumnDefinition Width="4"/>
+                        <ColumnDefinition x:Name="WeeklyTickRemainingColumn" Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="1" Background="#CCFFFFFF" Width="2" HorizontalAlignment="Center"/>
+                </Grid>
+            </Grid>
+            <TextBlock x:Name="WeeklyResetText" Text="" FontSize="10.5" Foreground="#8A8A8E" Margin="0,0,0,18"/>
+
+            <StackPanel x:Name="OpusRow" Margin="0,0,0,16">
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Opus · Weekly" FontSize="12.5" Foreground="#8A8A8E"/>
+                    <TextBlock x:Name="OpusPercentText" Grid.Column="1" Text="0%" FontSize="13" FontWeight="SemiBold"/>
+                </Grid>
+                <ProgressBar x:Name="OpusBar" Height="6" Minimum="0" Maximum="100" Foreground="#8B5CF6"/>
+            </StackPanel>
+
+            <StackPanel x:Name="SonnetRow" Margin="0,0,0,16">
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Sonnet · Weekly" FontSize="12.5" Foreground="#8A8A8E"/>
+                    <TextBlock x:Name="SonnetPercentText" Grid.Column="1" Text="0%" FontSize="13" FontWeight="SemiBold"/>
+                </Grid>
+                <ProgressBar x:Name="SonnetBar" Height="6" Minimum="0" Maximum="100" Foreground="#3B82F6"/>
+            </StackPanel>
+
+            <TextBlock x:Name="InsightText" Text="" FontSize="11" FontWeight="Medium" TextWrapping="Wrap" Margin="0,0,0,4"/>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" x:Name="StatusLinkPanel" Orientation="Horizontal" Cursor="Hand"
+                            VerticalAlignment="Center" MouseLeftButtonUp="StatusLinkText_MouseLeftButtonUp">
+                    <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="Gray" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="StatusDescriptionText" Text="Claude Status" FontSize="10.5" Foreground="#8A8A8E" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" x:Name="LastUpdatedText" Text="" FontSize="10.5"
+                           Foreground="#8A8A8E" HorizontalAlignment="Right"/>
+            </Grid>
+        </StackPanel>
+    </StackPanel>
+</ui:FluentWindow>
