@@ -47,6 +47,11 @@ public partial class PopoverWindow : FluentWindow
     private void RenderProfileSelector()
     {
         _isUpdatingProfileSelector = true;
+        // ProfileManager.Profiles always returns the same List<Profile> reference (mutated in
+        // place by CreateProfile/RenameProfile/DeleteProfile). Reassigning ItemsSource to a
+        // reference-equal value is a no-op for WPF's DependencyProperty engine, so force a real
+        // reassignment by clearing it first.
+        ProfileSelector.ItemsSource = null;
         ProfileSelector.ItemsSource = _profileManager.Profiles;
         ProfileSelector.SelectedItem = _profileManager.ActiveProfile;
         _isUpdatingProfileSelector = false;
