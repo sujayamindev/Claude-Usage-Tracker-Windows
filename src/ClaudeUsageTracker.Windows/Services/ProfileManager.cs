@@ -1,3 +1,4 @@
+using System.Threading;
 using ClaudeUsageTracker.Windows.Models;
 
 namespace ClaudeUsageTracker.Windows.Services;
@@ -46,6 +47,18 @@ public sealed class ProfileManager
         {
             _profiles = data.Profiles;
             _activeProfileId = data.ActiveProfileId;
+
+            // Guard against a hand-edited or partially-written profiles.json: structurally valid
+            // JSON can still be semantically inconsistent (ActiveProfileId matching no profile, or
+            // an empty profile list), which every in-app mutator otherwise prevents.
+            if (_profiles.Count == 0)
+                throw new ProfileStoreException("profiles.json contains no profiles.", null);
+
+            if (_profiles.All(p => p.Id != _activeProfileId))
+            {
+                _activeProfileId = _profiles[0].Id;
+                Persist();
+            }
         }
         else
         {
@@ -68,12 +81,31 @@ public sealed class ProfileManager
             CredentialStore.Save(profile.Id, legacyCredentials);
             CredentialStore.ClearLegacy();
         }
-        else if (_cliCredentialReader.TryRead() is { IsExpired: false })
+        else if (TryReadCliCredentialsWithRetry() is { IsExpired: false })
         {
             profile.AuthMode = ProfileAuthMode.CliOAuth;
         }
 
         return profile;
+    }
+
+    // Synchronous duplicate of CliCredentialReader.TryReadWithRetryAsync's retry logic: the
+    // constructor must stay synchronous to avoid a WPF Dispatcher deadlock (awaiting Task.Delay
+    // would capture the calling SynchronizationContext), and this only ever runs once during
+    // first-run/upgrade migration, so the ~1s worst-case blocking cost is acceptable exactly here
+    // (unlike on every regular poll tick).
+    private CliCredentials? TryReadCliCredentialsWithRetry(int maxAttempts = 3, TimeSpan? delayBetweenAttempts = null)
+    {
+        var delay = delayBetweenAttempts ?? TimeSpan.FromMilliseconds(500);
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            if (_cliCredentialReader.TryRead() is { IsExpired: false } credentials)
+                return credentials;
+
+            if (attempt < maxAttempts - 1)
+                Thread.Sleep(delay);
+        }
+        return null;
     }
 
     public Profile CreateProfile(string name, ProfileAuthMode authMode, StoredCredentials? credentials)
