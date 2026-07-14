@@ -15,6 +15,8 @@ public partial class App : Application
     private readonly StatuslineCache _statuslineCache = new();
     private readonly NotificationSettingsStore _notificationSettingsStore = new();
     private readonly TrayIconSettingsStore _trayIconSettingsStore = new();
+    private readonly ProfileStore _profileStore = new();
+    private ProfileManager _profileManager = null!;
     private ThresholdNotifier _thresholdNotifier = null!;
     private ClaudeApiClient _apiClient = null!;
     private UsageViewModel _viewModel = null!;
@@ -37,6 +39,19 @@ public partial class App : Application
 
         _thresholdNotifier = new ThresholdNotifier(_notificationSettingsStore);
 
+        try
+        {
+            _profileManager = new ProfileManager(_profileStore, _cliCredentialReader);
+        }
+        catch (ProfileStoreException ex)
+        {
+            MessageBox.Show(
+                $"{ex.Message}\n\nClaude Usage Tracker can't start until this is fixed.",
+                "Claude Usage Tracker", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+            return;
+        }
+
         await _transport.InitializeAsync();
 
         _apiClient = new ClaudeApiClient(_transport);
@@ -44,12 +59,13 @@ public partial class App : Application
         _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache, _thresholdNotifier);
         _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(() => RunSetupFlow());
         _pollingService.ThresholdCrossed += (_, evt) => Dispatcher.Invoke(() => _trayIconService.ShowThresholdNotification(evt));
+        _profileManager.ActiveProfileChanged += (_, profile) => Dispatcher.Invoke(() => SwitchToProfile(profile));
 
         _popoverWindow = new PopoverWindow(_viewModel, _pollingService, _trayIconSettingsStore);
         _popoverWindow.SignOutRequested += (_, _) =>
         {
             _pollingService.Stop();
-            CredentialStore.Clear();
+            CredentialStore.Clear(_profileManager.ActiveProfile.Id);
             RunSetupFlow(watchForCliLogin: false);
         };
         _popoverWindow.DetachRequested += (_, _) =>
@@ -64,7 +80,7 @@ public partial class App : Application
             _detachedWindow.SignOutRequested += (_, _) =>
             {
                 _pollingService.Stop();
-                CredentialStore.Clear();
+                CredentialStore.Clear(_profileManager.ActiveProfile.Id);
                 RunSetupFlow(watchForCliLogin: false);
             };
             _detachedWindow.Closed += (_, _) => _detachedWindow = null;
@@ -80,18 +96,7 @@ public partial class App : Application
         _trayIconService.NotificationSettingsRequested += (_, _) => OpenNotificationSettings();
         _trayIconService.IconStyleSettingsRequested += (_, _) => OpenAppearanceSettings();
 
-        if (CredentialStore.TryLoad(out var credentials) && credentials is not null)
-        {
-            _pollingService.StartWithSessionKey(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
-        }
-        else if (await _cliCredentialReader.TryReadWithRetryAsync() is not null)
-        {
-            _pollingService.StartWithCliOAuth();
-        }
-        else
-        {
-            RunSetupFlow();
-        }
+        SwitchToProfile(_profileManager.ActiveProfile);
 
         _ = CheckForUpdatesAsync(interactive: false);
     }
@@ -102,6 +107,24 @@ public partial class App : Application
         var input = StatuslineInput.TryParse(Console.In.ReadToEnd());
         var cacheEntry = _statuslineCache.TryRead(TimeSpan.FromSeconds(90));
         Console.WriteLine(StatuslineFormatter.Format(input, cacheEntry));
+    }
+
+    private void SwitchToProfile(Models.Profile profile)
+    {
+        _pollingService.Stop();
+
+        if (profile.AuthMode == Models.ProfileAuthMode.CliOAuth)
+        {
+            _pollingService.StartWithCliOAuth();
+        }
+        else if (CredentialStore.TryLoad(profile.Id, out var creds) && creds is not null)
+        {
+            _pollingService.StartWithSessionKey(creds.SessionKey, creds.OrganizationId, creds.OrganizationName);
+        }
+        else
+        {
+            RunSetupFlow();
+        }
     }
 
     private void OnTrayIconClicked()
@@ -145,14 +168,16 @@ public partial class App : Application
 
         if (shown && setupWindow.CliLoginDetected)
         {
+            _profileManager.UpdateActiveProfileCredentials(Models.ProfileAuthMode.CliOAuth, null);
             _pollingService.StartWithCliOAuth();
         }
         else if (shown && setupWindow.Result is not null)
         {
             var credentials = setupWindow.Result!;
+            _profileManager.UpdateActiveProfileCredentials(Models.ProfileAuthMode.SessionKey, credentials);
             _pollingService.StartWithSessionKey(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
         }
-        else if (!CredentialStore.TryLoad(out _))
+        else if (!CredentialStore.TryLoad(_profileManager.ActiveProfile.Id, out _))
         {
             // No stored credentials and the user cancelled setup — nothing to run for.
             Shutdown();

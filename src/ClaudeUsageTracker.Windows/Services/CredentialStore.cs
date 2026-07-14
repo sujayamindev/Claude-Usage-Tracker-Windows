@@ -5,21 +5,41 @@ using System.Text.Json;
 namespace ClaudeUsageTracker.Windows.Services;
 
 /// <summary>
-/// Stores the session key + organization ID in Windows Credential Manager, replacing the
-/// macOS app's KeychainService. Uses a single generic credential holding a small JSON blob.
+/// Stores per-profile session key + organization ID in Windows Credential Manager, replacing the
+/// macOS app's KeychainService. Each profile gets its own generic credential, target-named
+/// "ClaudeUsageTracker:Profile:{profileId}". The legacy fixed target ("ClaudeUsageTracker:Profile",
+/// used before multi-profile support) is only read/cleared now, by ProfileManager's one-time
+/// migration — SaveLegacy exists solely so tests can seed a pre-migration state.
 /// </summary>
 public static class CredentialStore
 {
-    private const string TargetName = "ClaudeUsageTracker:Profile";
+    private const string LegacyTargetName = "ClaudeUsageTracker:Profile";
     private const uint CredTypeGeneric = 1;
     private const uint CredPersistLocalMachine = 2;
 
-    public static void Save(StoredCredentials credentials)
+    private static string TargetName(Guid profileId) => $"ClaudeUsageTracker:Profile:{profileId:D}";
+
+    public static void Save(Guid profileId, StoredCredentials credentials) => SaveToTarget(TargetName(profileId), credentials);
+
+    public static bool TryLoad(Guid profileId, out StoredCredentials? credentials) => TryLoadFromTarget(TargetName(profileId), out credentials);
+
+    public static void Clear(Guid profileId) => CredDelete(TargetName(profileId), CredTypeGeneric, 0);
+
+    /// <summary>Only used by tests to seed a pre-migration state.</summary>
+    public static void SaveLegacy(StoredCredentials credentials) => SaveToTarget(LegacyTargetName, credentials);
+
+    /// <summary>Only used by ProfileManager's one-time migration.</summary>
+    public static bool TryLoadLegacy(out StoredCredentials? credentials) => TryLoadFromTarget(LegacyTargetName, out credentials);
+
+    /// <summary>Only used by ProfileManager's one-time migration, after a successful copy.</summary>
+    public static void ClearLegacy() => CredDelete(LegacyTargetName, CredTypeGeneric, 0);
+
+    private static void SaveToTarget(string targetName, StoredCredentials credentials)
     {
         var json = JsonSerializer.Serialize(credentials);
         var blob = Encoding.Unicode.GetBytes(json);
         var blobPtr = Marshal.AllocHGlobal(blob.Length);
-        var targetNamePtr = Marshal.StringToCoTaskMemUni(TargetName);
+        var targetNamePtr = Marshal.StringToCoTaskMemUni(targetName);
         var userNamePtr = Marshal.StringToCoTaskMemUni(Environment.UserName);
 
         try
@@ -50,11 +70,11 @@ public static class CredentialStore
         }
     }
 
-    public static bool TryLoad(out StoredCredentials? credentials)
+    private static bool TryLoadFromTarget(string targetName, out StoredCredentials? credentials)
     {
         credentials = null;
 
-        if (!CredRead(TargetName, CredTypeGeneric, 0, out var credentialPtr))
+        if (!CredRead(targetName, CredTypeGeneric, 0, out var credentialPtr))
             return false;
 
         try
@@ -74,9 +94,6 @@ public static class CredentialStore
             CredFree(credentialPtr);
         }
     }
-
-    /// <summary>No-op if no credential is currently stored.</summary>
-    public static void Clear() => CredDelete(TargetName, CredTypeGeneric, 0);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct NativeCredential

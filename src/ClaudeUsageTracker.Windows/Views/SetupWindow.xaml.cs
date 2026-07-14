@@ -54,10 +54,7 @@ public partial class SetupWindow : FluentWindow
             var organizations = await _apiClient.FetchOrganizationsAsync(sessionKey);
             var organization = organizations[0];
 
-            var credentials = new StoredCredentials(sessionKey, organization.Uuid, organization.Name);
-            CredentialStore.Save(credentials);
-
-            Result = credentials;
+            Result = new StoredCredentials(sessionKey, organization.Uuid, organization.Name);
             DialogResult = true;
             Close();
         }
