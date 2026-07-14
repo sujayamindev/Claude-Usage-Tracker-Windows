@@ -14,6 +14,8 @@ public partial class ManageProfilesWindow : FluentWindow
     private readonly ProfileManager _profileManager;
     private readonly ClaudeApiClient _apiClient;
     private readonly CliCredentialReader _cliCredentialReader;
+    private readonly EventHandler _profilesChangedHandler;
+    private readonly EventHandler<Profile> _activeProfileChangedHandler;
     private Guid? _renamingProfileId;
 
     public ManageProfilesWindow(ProfileManager profileManager, ClaudeApiClient apiClient, CliCredentialReader cliCredentialReader)
@@ -23,8 +25,16 @@ public partial class ManageProfilesWindow : FluentWindow
         _profileManager = profileManager;
         _apiClient = apiClient;
         _cliCredentialReader = cliCredentialReader;
-        _profileManager.ProfilesChanged += (_, _) => Render();
-        _profileManager.ActiveProfileChanged += (_, _) => Render();
+
+        _profilesChangedHandler = (_, _) => Render();
+        _activeProfileChangedHandler = (_, _) => Render();
+        _profileManager.ProfilesChanged += _profilesChangedHandler;
+        _profileManager.ActiveProfileChanged += _activeProfileChangedHandler;
+        Closed += (_, _) =>
+        {
+            _profileManager.ProfilesChanged -= _profilesChangedHandler;
+            _profileManager.ActiveProfileChanged -= _activeProfileChangedHandler;
+        };
         Render();
     }
 
