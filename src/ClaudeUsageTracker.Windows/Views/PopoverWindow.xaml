@@ -31,6 +31,20 @@
     </ui:FluentWindow.Resources>
     <Border Background="#B3202020">
         <StackPanel Margin="20">
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ComboBox x:Name="ProfileSelector" Grid.Column="0" DisplayMemberPath="Name"
+                          HorizontalAlignment="Stretch" SelectionChanged="ProfileSelector_SelectionChanged"/>
+                <ui:Button Grid.Column="1" Appearance="Secondary" ToolTip="Manage Profiles"
+                           Width="32" Height="32" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                           Margin="6,0,0,0" Click="ManageProfilesButton_Click">
+                    <ui:SymbolIcon Symbol="People24" FontSize="16" Filled="False"/>
+                </ui:Button>
+            </Grid>
+
             <Grid Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>

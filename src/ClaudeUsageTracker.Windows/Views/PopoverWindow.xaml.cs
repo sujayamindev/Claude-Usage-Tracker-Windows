@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using ClaudeUsageTracker.Windows.Models;
 using ClaudeUsageTracker.Windows.Services;
 using ClaudeUsageTracker.Windows.ViewModels;
 using Wpf.Ui.Appearance;
@@ -17,23 +18,51 @@ public partial class PopoverWindow : FluentWindow
     private readonly UsageViewModel _viewModel;
     private readonly UsagePollingService _pollingService;
     private readonly TrayIconSettingsStore _trayIconSettingsStore;
+    private readonly ProfileManager _profileManager;
     private bool _isPinned;
+    private bool _isUpdatingProfileSelector;
 
     public event EventHandler? SignOutRequested;
     public event EventHandler? DetachRequested;
+    public event EventHandler<Guid>? ProfileSwitchRequested;
+    public event EventHandler? ManageProfilesRequested;
 
-    public PopoverWindow(UsageViewModel viewModel, UsagePollingService pollingService, TrayIconSettingsStore trayIconSettingsStore)
+    public PopoverWindow(UsageViewModel viewModel, UsagePollingService pollingService, TrayIconSettingsStore trayIconSettingsStore, ProfileManager profileManager)
     {
         InitializeComponent();
         SystemThemeWatcher.Watch(this, WindowBackdropType.Acrylic, updateAccents: true);
         _viewModel = viewModel;
         _pollingService = pollingService;
         _trayIconSettingsStore = trayIconSettingsStore;
+        _profileManager = profileManager;
         DataContext = viewModel;
 
         _viewModel.PropertyChanged += (_, _) => Render();
+        _profileManager.ProfilesChanged += (_, _) => RenderProfileSelector();
+        _profileManager.ActiveProfileChanged += (_, _) => RenderProfileSelector();
+        RenderProfileSelector();
         Render();
     }
+
+    private void RenderProfileSelector()
+    {
+        _isUpdatingProfileSelector = true;
+        ProfileSelector.ItemsSource = _profileManager.Profiles;
+        ProfileSelector.SelectedItem = _profileManager.ActiveProfile;
+        _isUpdatingProfileSelector = false;
+    }
+
+    private void ProfileSelector_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingProfileSelector)
+            return;
+
+        if (ProfileSelector.SelectedItem is Profile profile && profile.Id != _profileManager.ActiveProfile.Id)
+            ProfileSwitchRequested?.Invoke(this, profile.Id);
+    }
+
+    private void ManageProfilesButton_Click(object sender, RoutedEventArgs e) =>
+        ManageProfilesRequested?.Invoke(this, EventArgs.Empty);
 
     private void Render()
     {

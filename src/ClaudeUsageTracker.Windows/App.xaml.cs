@@ -61,13 +61,15 @@ public partial class App : Application
         _pollingService.ThresholdCrossed += (_, evt) => Dispatcher.Invoke(() => _trayIconService.ShowThresholdNotification(evt));
         _profileManager.ActiveProfileChanged += (_, profile) => Dispatcher.Invoke(() => SwitchToProfile(profile));
 
-        _popoverWindow = new PopoverWindow(_viewModel, _pollingService, _trayIconSettingsStore);
+        _popoverWindow = new PopoverWindow(_viewModel, _pollingService, _trayIconSettingsStore, _profileManager);
         _popoverWindow.SignOutRequested += (_, _) =>
         {
             _pollingService.Stop();
             CredentialStore.Clear(_profileManager.ActiveProfile.Id);
             RunSetupFlow(watchForCliLogin: false);
         };
+        _popoverWindow.ProfileSwitchRequested += (_, profileId) => _profileManager.SwitchTo(profileId);
+        _popoverWindow.ManageProfilesRequested += (_, _) => OpenManageProfiles();
         _popoverWindow.DetachRequested += (_, _) =>
         {
             _popoverWindow.Hide();
