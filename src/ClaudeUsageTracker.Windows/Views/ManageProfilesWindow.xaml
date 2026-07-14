@@ -1,0 +1,21 @@
+<!-- src/ClaudeUsageTracker.Windows/Views/ManageProfilesWindow.xaml -->
+<ui:FluentWindow x:Class="ClaudeUsageTracker.Windows.Views.ManageProfilesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="Claude Usage Tracker — Manage Profiles"
+        Icon="/Assets/AppIcon.ico"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <StackPanel>
+        <ui:TitleBar Title="Claude Usage Tracker — Manage Profiles"/>
+        <StackPanel Margin="20,16,20,20">
+            <TextBlock Text="Profiles" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+            <TextBlock x:Name="ErrorText" Foreground="#D93025" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <StackPanel x:Name="ProfilesPanel" Margin="0,0,0,12"/>
+            <ui:Button Content="Add Profile…" Click="AddProfile_Click" HorizontalAlignment="Left"/>
+        </StackPanel>
+    </StackPanel>
+</ui:FluentWindow>

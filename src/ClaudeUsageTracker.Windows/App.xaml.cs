@@ -95,6 +95,7 @@ public partial class App : Application
         _trayIconService.StatuslineSettingsRequested += (_, _) => OpenStatuslineSettings();
         _trayIconService.NotificationSettingsRequested += (_, _) => OpenNotificationSettings();
         _trayIconService.IconStyleSettingsRequested += (_, _) => OpenAppearanceSettings();
+        _trayIconService.ManageProfilesRequested += (_, _) => OpenManageProfiles();
 
         SwitchToProfile(_profileManager.ActiveProfile);
 
@@ -156,6 +157,12 @@ public partial class App : Application
     private void OpenAppearanceSettings()
     {
         var window = new TrayIconStyleWindow(_trayIconSettingsStore, () => _trayIconService.TriggerRender());
+        window.ShowDialog();
+    }
+
+    private void OpenManageProfiles()
+    {
+        var window = new ManageProfilesWindow(_profileManager, _apiClient, _cliCredentialReader);
         window.ShowDialog();
     }
 
