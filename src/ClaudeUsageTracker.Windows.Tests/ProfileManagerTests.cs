@@ -94,6 +94,30 @@ public class ProfileManagerTests
     }
 
     [Fact]
+    public void Constructor_WithActiveProfileIdMatchingNoProfile_FallsBackToFirstProfileAndPersists()
+    {
+        var profilesPath = TempProfilesPath();
+        try
+        {
+            var onlyProfile = new Profile { Name = "Only" };
+            var store = new ProfileStore(profilesPath);
+            store.Save(new ProfileData { Profiles = [onlyProfile], ActiveProfileId = Guid.NewGuid() });
+
+            var manager = new ProfileManager(store, new CliCredentialReader(MissingCliCredentialsPath()));
+
+            Assert.Single(manager.Profiles);
+            Assert.Equal(onlyProfile.Id, manager.ActiveProfile.Id);
+
+            var reloaded = store.Load();
+            Assert.Equal(onlyProfile.Id, reloaded!.ActiveProfileId);
+        }
+        finally
+        {
+            File.Delete(profilesPath);
+        }
+    }
+
+    [Fact]
     public void CreateProfile_AddsProfileSavesCredentialsAndActivatesIt()
     {
         var profilesPath = TempProfilesPath();
