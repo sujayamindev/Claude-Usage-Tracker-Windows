@@ -18,56 +18,23 @@ public partial class PopoverWindow : FluentWindow
     private readonly UsageViewModel _viewModel;
     private readonly UsagePollingService _pollingService;
     private readonly TrayIconSettingsStore _trayIconSettingsStore;
-    private readonly ProfileManager _profileManager;
     private bool _isPinned;
-    private bool _isUpdatingProfileSelector;
 
     public event EventHandler? SignOutRequested;
     public event EventHandler? DetachRequested;
-    public event EventHandler<Guid>? ProfileSwitchRequested;
-    public event EventHandler? ManageProfilesRequested;
 
-    public PopoverWindow(UsageViewModel viewModel, UsagePollingService pollingService, TrayIconSettingsStore trayIconSettingsStore, ProfileManager profileManager)
+    public PopoverWindow(UsageViewModel viewModel, UsagePollingService pollingService, TrayIconSettingsStore trayIconSettingsStore)
     {
         InitializeComponent();
         SystemThemeWatcher.Watch(this, WindowBackdropType.Acrylic, updateAccents: true);
         _viewModel = viewModel;
         _pollingService = pollingService;
         _trayIconSettingsStore = trayIconSettingsStore;
-        _profileManager = profileManager;
         DataContext = viewModel;
 
         _viewModel.PropertyChanged += (_, _) => Render();
-        _profileManager.ProfilesChanged += (_, _) => RenderProfileSelector();
-        _profileManager.ActiveProfileChanged += (_, _) => RenderProfileSelector();
-        RenderProfileSelector();
         Render();
     }
-
-    private void RenderProfileSelector()
-    {
-        _isUpdatingProfileSelector = true;
-        // ProfileManager.Profiles always returns the same List<Profile> reference (mutated in
-        // place by CreateProfile/RenameProfile/DeleteProfile). Reassigning ItemsSource to a
-        // reference-equal value is a no-op for WPF's DependencyProperty engine, so force a real
-        // reassignment by clearing it first.
-        ProfileSelector.ItemsSource = null;
-        ProfileSelector.ItemsSource = _profileManager.Profiles;
-        ProfileSelector.SelectedItem = _profileManager.ActiveProfile;
-        _isUpdatingProfileSelector = false;
-    }
-
-    private void ProfileSelector_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-    {
-        if (_isUpdatingProfileSelector)
-            return;
-
-        if (ProfileSelector.SelectedItem is Profile profile && profile.Id != _profileManager.ActiveProfile.Id)
-            ProfileSwitchRequested?.Invoke(this, profile.Id);
-    }
-
-    private void ManageProfilesButton_Click(object sender, RoutedEventArgs e) =>
-        ManageProfilesRequested?.Invoke(this, EventArgs.Empty);
 
     private void Render()
     {
