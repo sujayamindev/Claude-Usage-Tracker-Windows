@@ -29,7 +29,11 @@ public partial class SetupWindow : FluentWindow
             _cliWatchTimer.Start();
         }
 
-        Closed += (_, _) => _cliWatchTimer?.Stop();
+        Closed += (_, _) =>
+        {
+            _cliWatchTimer?.Stop();
+            SignInWebView.Dispose();
+        };
     }
 
     private void CheckForCliLogin()
@@ -43,6 +47,40 @@ public partial class SetupWindow : FluentWindow
         Close();
     }
 
+    private async void SignInWithBrowserButton_Click(object sender, RoutedEventArgs e)
+    {
+        ManualEntryPanel.Visibility = Visibility.Collapsed;
+        BrowserSignInPanel.Visibility = Visibility.Visible;
+        SizeToContent = SizeToContent.Manual;
+        Height = 640;
+
+        var environment = await WebView2EnvironmentFactory.CreateAsync();
+        await SignInWebView.EnsureCoreWebView2Async(environment);
+
+        await ClearClaudeCookiesAsync();
+
+        SignInWebView.CoreWebView2.Navigate("https://claude.ai/login");
+    }
+
+    private async Task ClearClaudeCookiesAsync()
+    {
+        var cookieManager = SignInWebView.CoreWebView2.CookieManager;
+        foreach (var uri in new[] { "https://claude.ai", "https://anthropic.com" })
+        {
+            var cookies = await cookieManager.GetCookiesAsync(uri);
+            foreach (var cookie in cookies)
+                cookieManager.DeleteCookie(cookie);
+        }
+    }
+
+    private void CancelSignInButton_Click(object sender, RoutedEventArgs e)
+    {
+        SignInWebView.CoreWebView2?.Stop();
+        BrowserSignInPanel.Visibility = Visibility.Collapsed;
+        ManualEntryPanel.Visibility = Visibility.Visible;
+        SizeToContent = SizeToContent.Height;
+    }
+
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
         ErrorText.Text = string.Empty;
@@ -50,7 +88,19 @@ public partial class SetupWindow : FluentWindow
 
         try
         {
-            var sessionKey = SessionKeyValidator.Validate(SessionKeyBox.Text);
+            await CompleteSignInAsync(SessionKeyBox.Text);
+        }
+        finally
+        {
+            ConnectButton.IsEnabled = true;
+        }
+    }
+
+    private async Task CompleteSignInAsync(string rawSessionKey)
+    {
+        try
+        {
+            var sessionKey = SessionKeyValidator.Validate(rawSessionKey);
             var organizations = await _apiClient.FetchOrganizationsAsync(sessionKey);
             var organization = organizations[0];
 
@@ -69,10 +119,6 @@ public partial class SetupWindow : FluentWindow
         catch (Exception ex)
         {
             ErrorText.Text = $"Unexpected error: {ex.Message}";
-        }
-        finally
-        {
-            ConnectButton.IsEnabled = true;
         }
     }
 }
