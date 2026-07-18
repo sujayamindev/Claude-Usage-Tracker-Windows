@@ -34,3 +34,6 @@ FEATURE_PARITY.md
 # Installer build output
 installer/publish/
 installer/output/
+
+# Local git worktrees
+.worktrees/
