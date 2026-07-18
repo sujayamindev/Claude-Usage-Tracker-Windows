@@ -2,8 +2,6 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using ClaudeUsageTracker.Windows.Services;
-using Microsoft.Web.WebView2.Core;
-using Microsoft.Web.WebView2.Wpf;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -15,7 +13,6 @@ public partial class SetupWindow : FluentWindow
     private readonly CliCredentialReader _cliCredentialReader;
     private readonly DispatcherTimer? _cliWatchTimer;
     private DispatcherTimer? _cookiePollTimer;
-    private Window? _ssoPopupWindow;
 
     public StoredCredentials? Result { get; private set; }
     public bool CliLoginDetected { get; private set; }
@@ -38,7 +35,6 @@ public partial class SetupWindow : FluentWindow
         {
             _cliWatchTimer?.Stop();
             _cookiePollTimer?.Stop();
-            _ssoPopupWindow?.Close();
             SignInWebView.Dispose();
         };
     }
@@ -56,14 +52,28 @@ public partial class SetupWindow : FluentWindow
 
     private async void SignInWithBrowserButton_Click(object sender, RoutedEventArgs e)
     {
+        // Must EnsureCoreWebView2Async before the control becomes visible: once SignInWebView
+        // gets real layout bounds, it auto-initializes itself with a default environment if
+        // nothing has claimed it yet, racing our explicit call below and throwing
+        // "WebView2 was already initialized with a different CoreWebView2Environment."
+        var environment = await WebView2EnvironmentFactory.CreateAsync();
+        await SignInWebView.EnsureCoreWebView2Async(environment);
+
+        // Google SSO ("Continue with Google") opens as a popup via window.open(). We deliberately
+        // don't handle CoreWebView2.NewWindowRequested to customize that popup: creating a second
+        // WebView2's CoreWebView2 asynchronously while that event's deferral is outstanding
+        // reliably deadlocks (confirmed via diagnostic logging — EnsureCoreWebView2Async on the
+        // popup control never completes, and WebView2's own watchdog reports
+        // RenderProcessUnresponsive ~16s later, regardless of which CoreWebView2Environment is
+        // passed in). Leaving NewWindowRequested unhandled makes WebView2 open its own default
+        // native popup window instead — unstyled, but it shares the same browser
+        // process/profile/cookie jar, so the resulting session cookie still lands where
+        // PollForSessionCookieAsync expects it once the popup completes and closes itself.
+
         ManualEntryPanel.Visibility = Visibility.Collapsed;
         BrowserSignInPanel.Visibility = Visibility.Visible;
         SizeToContent = SizeToContent.Manual;
         Height = 640;
-
-        var environment = await WebView2EnvironmentFactory.CreateAsync();
-        await SignInWebView.EnsureCoreWebView2Async(environment);
-        SignInWebView.CoreWebView2.NewWindowRequested += OnSsoPopupRequested;
 
         await ClearClaudeCookiesAsync();
 
@@ -92,43 +102,6 @@ public partial class SetupWindow : FluentWindow
         SizeToContent = SizeToContent.Height;
 
         await CompleteSignInAsync(sessionCookie.Value);
-    }
-
-    private async void OnSsoPopupRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
-    {
-        var deferral = e.GetDeferral();
-        try
-        {
-            e.Handled = true;
-
-            var popupWebView = new WebView2();
-            _ssoPopupWindow = new FluentWindow
-            {
-                Title = "Sign In",
-                Width = 480,
-                Height = 640,
-                Content = popupWebView,
-                Owner = this,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner
-            };
-
-            var environment = await WebView2EnvironmentFactory.CreateAsync();
-            await popupWebView.EnsureCoreWebView2Async(environment);
-
-            popupWebView.CoreWebView2.WindowCloseRequested += (_, _) => _ssoPopupWindow?.Close();
-            _ssoPopupWindow.Closed += (_, _) =>
-            {
-                popupWebView.Dispose();
-                _ssoPopupWindow = null;
-            };
-
-            e.NewWindow = popupWebView.CoreWebView2;
-            _ssoPopupWindow.Show();
-        }
-        finally
-        {
-            deferral.Complete();
-        }
     }
 
     private async Task ClearClaudeCookiesAsync()

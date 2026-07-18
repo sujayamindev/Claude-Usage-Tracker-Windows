@@ -9,9 +9,14 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
-    <StackPanel>
-        <ui:TitleBar Title="Claude Usage Tracker — Setup"/>
-        <StackPanel x:Name="ManualEntryPanel" Margin="20">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <ui:TitleBar Grid.Row="0" Title="Claude Usage Tracker — Setup"/>
+        <StackPanel x:Name="ManualEntryPanel" Grid.Row="1" Margin="20">
             <TextBlock Text="Connect your Claude account" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
             <ui:Button x:Name="SignInWithBrowserButton" Content="Sign in with browser" Appearance="Primary"
                        HorizontalAlignment="Stretch" Margin="0,0,0,12" Click="SignInWithBrowserButton_Click"/>
@@ -23,7 +28,7 @@
             <TextBlock x:Name="ErrorText" Foreground="Red" TextWrapping="Wrap" Margin="0,0,0,8"/>
             <ui:Button x:Name="ConnectButton" Content="Connect" Appearance="Primary" HorizontalAlignment="Stretch" Click="ConnectButton_Click"/>
         </StackPanel>
-        <Grid x:Name="BrowserSignInPanel" Visibility="Collapsed">
+        <Grid x:Name="BrowserSignInPanel" Grid.Row="2" Visibility="Collapsed">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -32,5 +37,5 @@
             <ui:Button x:Name="CancelSignInButton" Grid.Row="1" Content="Cancel" Appearance="Secondary"
                        HorizontalAlignment="Stretch" Margin="20,12,20,20" Click="CancelSignInButton_Click"/>
         </Grid>
-    </StackPanel>
+    </Grid>
 </ui:FluentWindow>
