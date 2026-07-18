@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using ClaudeUsageTracker.Windows.Services;
@@ -11,6 +12,7 @@ public partial class SetupWindow : FluentWindow
     private readonly ClaudeApiClient _apiClient;
     private readonly CliCredentialReader _cliCredentialReader;
     private readonly DispatcherTimer? _cliWatchTimer;
+    private DispatcherTimer? _cookiePollTimer;
 
     public StoredCredentials? Result { get; private set; }
     public bool CliLoginDetected { get; private set; }
@@ -32,6 +34,7 @@ public partial class SetupWindow : FluentWindow
         Closed += (_, _) =>
         {
             _cliWatchTimer?.Stop();
+            _cookiePollTimer?.Stop();
             SignInWebView.Dispose();
         };
     }
@@ -60,6 +63,30 @@ public partial class SetupWindow : FluentWindow
         await ClearClaudeCookiesAsync();
 
         SignInWebView.CoreWebView2.Navigate("https://claude.ai/login");
+
+        _cookiePollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _cookiePollTimer.Tick += async (_, _) => await PollForSessionCookieAsync();
+        _cookiePollTimer.Start();
+    }
+
+    private async Task PollForSessionCookieAsync()
+    {
+        if (SignInWebView.CoreWebView2 is null)
+            return;
+
+        var cookies = await SignInWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://claude.ai");
+        var sessionCookie = cookies.FirstOrDefault(c => c.Name == "sessionKey");
+        if (sessionCookie is null)
+            return;
+
+        _cookiePollTimer?.Stop();
+        _cookiePollTimer = null;
+
+        BrowserSignInPanel.Visibility = Visibility.Collapsed;
+        ManualEntryPanel.Visibility = Visibility.Visible;
+        SizeToContent = SizeToContent.Height;
+
+        await CompleteSignInAsync(sessionCookie.Value);
     }
 
     private async Task ClearClaudeCookiesAsync()
@@ -75,6 +102,8 @@ public partial class SetupWindow : FluentWindow
 
     private void CancelSignInButton_Click(object sender, RoutedEventArgs e)
     {
+        _cookiePollTimer?.Stop();
+        _cookiePollTimer = null;
         SignInWebView.CoreWebView2?.Stop();
         BrowserSignInPanel.Visibility = Visibility.Collapsed;
         ManualEntryPanel.Visibility = Visibility.Visible;
