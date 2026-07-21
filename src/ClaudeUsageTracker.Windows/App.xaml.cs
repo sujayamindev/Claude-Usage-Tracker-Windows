@@ -16,6 +16,7 @@ public partial class App : Application
     private readonly NotificationSettingsStore _notificationSettingsStore = new();
     private readonly TrayIconSettingsStore _trayIconSettingsStore = new();
     private readonly ProfileStore _profileStore = new();
+    private readonly UsageHistoryService _usageHistoryService = new();
     private ProfileManager _profileManager = null!;
     private ThresholdNotifier _thresholdNotifier = null!;
     private ClaudeApiClient _apiClient = null!;
@@ -24,6 +25,7 @@ public partial class App : Application
     private TrayIconService _trayIconService = null!;
     private PopoverWindow _popoverWindow = null!;
     private DetachedUsageWindow? _detachedWindow;
+    private UsageHistoryWindow? _usageHistoryWindow;
     private UpdateCheckResult? _pendingUpdateResult;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -41,7 +43,7 @@ public partial class App : Application
 
         try
         {
-            _profileManager = new ProfileManager(_profileStore, _cliCredentialReader, new UsageHistoryService());
+            _profileManager = new ProfileManager(_profileStore, _cliCredentialReader, _usageHistoryService);
         }
         catch (ProfileStoreException ex)
         {
@@ -56,10 +58,14 @@ public partial class App : Application
 
         _apiClient = new ClaudeApiClient(_transport);
         _viewModel = new UsageViewModel();
-        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache, _thresholdNotifier, new UsageHistoryService());
+        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache, _thresholdNotifier, _usageHistoryService);
         _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(() => RunSetupFlow());
         _pollingService.ThresholdCrossed += (_, evt) => Dispatcher.Invoke(() => _trayIconService.ShowThresholdNotification(evt));
-        _profileManager.ActiveProfileChanged += (_, profile) => Dispatcher.Invoke(() => SwitchToProfile(profile));
+        _profileManager.ActiveProfileChanged += (_, profile) => Dispatcher.Invoke(() =>
+        {
+            SwitchToProfile(profile);
+            _usageHistoryWindow?.Close();
+        });
 
         _popoverWindow = new PopoverWindow(_viewModel, _pollingService, _trayIconSettingsStore);
         _popoverWindow.SignOutRequested += (_, _) =>
@@ -96,6 +102,7 @@ public partial class App : Application
         _trayIconService.NotificationSettingsRequested += (_, _) => OpenNotificationSettings();
         _trayIconService.IconStyleSettingsRequested += (_, _) => OpenAppearanceSettings();
         _trayIconService.ManageProfilesRequested += (_, _) => OpenManageProfiles();
+        _trayIconService.UsageHistoryRequested += (_, _) => OpenUsageHistory();
 
         SwitchToProfile(_profileManager.ActiveProfile);
 
@@ -164,6 +171,18 @@ public partial class App : Application
     {
         var window = new ManageProfilesWindow(_profileManager, _apiClient, _cliCredentialReader);
         window.ShowDialog();
+    }
+
+    private void OpenUsageHistory()
+    {
+        if (_usageHistoryWindow?.IsVisible == true)
+        {
+            _usageHistoryWindow.Activate();
+            return;
+        }
+        _usageHistoryWindow = new UsageHistoryWindow(_usageHistoryService, _profileManager.ActiveProfile.Id, _viewModel);
+        _usageHistoryWindow.Closed += (_, _) => _usageHistoryWindow = null;
+        _usageHistoryWindow.Show();
     }
 
     private void RunSetupFlow(bool watchForCliLogin = true)
