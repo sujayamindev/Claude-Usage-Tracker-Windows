@@ -23,10 +23,14 @@ public sealed class UsagePollingService : IDisposable
     private readonly StatuslineInstaller _statuslineInstaller;
     private readonly StatuslineCache _statuslineCache;
     private readonly ThresholdNotifier _thresholdNotifier;
+    private readonly UsageHistoryService _usageHistoryService;
+    private readonly ResetDetector _resetDetector = new();
     private readonly DispatcherTimer _timer;
     private string? _sessionKey;
     private string? _organizationId;
     private bool _useCliOAuth;
+    private Guid _profileId;
+    private ClaudeUsage? _lastUsage;
 
     public event EventHandler? AuthenticationFailed;
     public event EventHandler<NotificationEvent>? ThresholdCrossed;
@@ -37,7 +41,8 @@ public sealed class UsagePollingService : IDisposable
         CliCredentialReader cliCredentialReader,
         StatuslineInstaller statuslineInstaller,
         StatuslineCache statuslineCache,
-        ThresholdNotifier thresholdNotifier)
+        ThresholdNotifier thresholdNotifier,
+        UsageHistoryService usageHistoryService)
     {
         _apiClient = apiClient;
         _viewModel = viewModel;
@@ -45,28 +50,38 @@ public sealed class UsagePollingService : IDisposable
         _statuslineInstaller = statuslineInstaller;
         _statuslineCache = statuslineCache;
         _thresholdNotifier = thresholdNotifier;
+        _usageHistoryService = usageHistoryService;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _timer.Tick += async (_, _) => await PollAsync();
     }
 
-    public void StartWithSessionKey(string sessionKey, string organizationId, string? organizationName = null)
+    public void StartWithSessionKey(Guid profileId, string sessionKey, string organizationId, string? organizationName = null)
     {
         _useCliOAuth = false;
         _sessionKey = sessionKey;
         _organizationId = organizationId;
         _viewModel.AccountName = organizationName;
+        ResetHistoryTracking(profileId);
         _timer.Start();
         _ = PollAsync();
     }
 
-    public void StartWithCliOAuth()
+    public void StartWithCliOAuth(Guid profileId)
     {
         _useCliOAuth = true;
         _sessionKey = null;
         _organizationId = null;
         _viewModel.AccountName = "Claude Code account";
+        ResetHistoryTracking(profileId);
         _timer.Start();
         _ = PollAsync();
+    }
+
+    private void ResetHistoryTracking(Guid profileId)
+    {
+        _profileId = profileId;
+        _resetDetector.Reset();
+        _lastUsage = null;
     }
 
     public void Stop() => _timer.Stop();
@@ -100,6 +115,7 @@ public sealed class UsagePollingService : IDisposable
                 usage = await _apiClient.FetchUsageDataAsync(_sessionKey, _organizationId);
             }
 
+            RecordUsageHistory(usage);
             _viewModel.ApplyUsage(usage);
 
             foreach (var notificationEvent in _thresholdNotifier.Evaluate(usage))
@@ -129,6 +145,25 @@ public sealed class UsagePollingService : IDisposable
         }
 
         await PollStatusAsync();
+    }
+
+    private void RecordUsageHistory(ClaudeUsage usage)
+    {
+        var previousUsage = _lastUsage;
+        var sessionResetDetected = _resetDetector.CheckSessionReset(usage.SessionResetTime);
+        var weeklyResetDetected = _resetDetector.CheckWeeklyReset(usage.WeeklyResetTime);
+
+        if (sessionResetDetected)
+            _usageHistoryService.RecordSessionReset(_profileId, previousUsage, previousUsage?.SessionResetTime ?? DateTimeOffset.Now);
+        else
+            _usageHistoryService.RecordSessionPeriodic(_profileId, usage);
+
+        if (weeklyResetDetected)
+            _usageHistoryService.RecordWeeklyReset(_profileId, previousUsage, previousUsage?.WeeklyResetTime ?? DateTimeOffset.Now);
+        else
+            _usageHistoryService.RecordWeeklyPeriodic(_profileId, usage);
+
+        _lastUsage = usage;
     }
 
     private async Task PollStatusAsync()

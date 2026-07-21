@@ -56,7 +56,7 @@ public partial class App : Application
 
         _apiClient = new ClaudeApiClient(_transport);
         _viewModel = new UsageViewModel();
-        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache, _thresholdNotifier);
+        _pollingService = new UsagePollingService(_apiClient, _viewModel, _cliCredentialReader, _statuslineInstaller, _statuslineCache, _thresholdNotifier, new UsageHistoryService());
         _pollingService.AuthenticationFailed += (_, _) => Dispatcher.Invoke(() => RunSetupFlow());
         _pollingService.ThresholdCrossed += (_, evt) => Dispatcher.Invoke(() => _trayIconService.ShowThresholdNotification(evt));
         _profileManager.ActiveProfileChanged += (_, profile) => Dispatcher.Invoke(() => SwitchToProfile(profile));
@@ -116,11 +116,11 @@ public partial class App : Application
 
         if (profile.AuthMode == Models.ProfileAuthMode.CliOAuth)
         {
-            _pollingService.StartWithCliOAuth();
+            _pollingService.StartWithCliOAuth(profile.Id);
         }
         else if (CredentialStore.TryLoad(profile.Id, out var creds) && creds is not null)
         {
-            _pollingService.StartWithSessionKey(creds.SessionKey, creds.OrganizationId, creds.OrganizationName);
+            _pollingService.StartWithSessionKey(profile.Id, creds.SessionKey, creds.OrganizationId, creds.OrganizationName);
         }
         else
         {
@@ -176,13 +176,13 @@ public partial class App : Application
         if (shown && setupWindow.CliLoginDetected)
         {
             _profileManager.UpdateActiveProfileCredentials(Models.ProfileAuthMode.CliOAuth, null);
-            _pollingService.StartWithCliOAuth();
+            _pollingService.StartWithCliOAuth(_profileManager.ActiveProfile.Id);
         }
         else if (shown && setupWindow.Result is not null)
         {
             var credentials = setupWindow.Result!;
             _profileManager.UpdateActiveProfileCredentials(Models.ProfileAuthMode.SessionKey, credentials);
-            _pollingService.StartWithSessionKey(credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
+            _pollingService.StartWithSessionKey(_profileManager.ActiveProfile.Id, credentials.SessionKey, credentials.OrganizationId, credentials.OrganizationName);
         }
         else if (!CredentialStore.TryLoad(_profileManager.ActiveProfile.Id, out _))
         {
