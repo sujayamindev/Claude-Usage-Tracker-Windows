@@ -11,6 +11,9 @@ public class ProfileManagerTests
     private static string MissingCliCredentialsPath() =>
         Path.Combine(Path.GetTempPath(), $"cli-credentials-test-{Guid.NewGuid():N}.json");
 
+    private static UsageHistoryService MakeHistoryService() =>
+        new(Path.Combine(Path.GetTempPath(), $"history-test-{Guid.NewGuid():N}"));
+
     private static string WriteValidCliCredentialsFile()
     {
         var path = Path.Combine(Path.GetTempPath(), $"cli-credentials-test-{Guid.NewGuid():N}.json");
@@ -35,7 +38,7 @@ public class ProfileManagerTests
         var profilesPath = TempProfilesPath();
         try
         {
-            var manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()));
+            var manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()), MakeHistoryService());
 
             Assert.Single(manager.Profiles);
             Assert.Equal("Default", manager.ActiveProfile.Name);
@@ -57,7 +60,7 @@ public class ProfileManagerTests
         ProfileManager? manager = null;
         try
         {
-            manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()));
+            manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()), MakeHistoryService());
 
             Assert.Single(manager.Profiles);
             Assert.Equal(ProfileAuthMode.SessionKey, manager.ActiveProfile.AuthMode);
@@ -81,7 +84,7 @@ public class ProfileManagerTests
         var cliPath = WriteValidCliCredentialsFile();
         try
         {
-            var manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(cliPath));
+            var manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(cliPath), MakeHistoryService());
 
             Assert.Single(manager.Profiles);
             Assert.Equal(ProfileAuthMode.CliOAuth, manager.ActiveProfile.AuthMode);
@@ -103,7 +106,7 @@ public class ProfileManagerTests
             var store = new ProfileStore(profilesPath);
             store.Save(new ProfileData { Profiles = [onlyProfile], ActiveProfileId = Guid.NewGuid() });
 
-            var manager = new ProfileManager(store, new CliCredentialReader(MissingCliCredentialsPath()));
+            var manager = new ProfileManager(store, new CliCredentialReader(MissingCliCredentialsPath()), MakeHistoryService());
 
             Assert.Single(manager.Profiles);
             Assert.Equal(onlyProfile.Id, manager.ActiveProfile.Id);
@@ -125,7 +128,7 @@ public class ProfileManagerTests
         Profile? created = null;
         try
         {
-            manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()));
+            manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()), MakeHistoryService());
             var credentials = new StoredCredentials($"sk-ant-sid01-test-{Guid.NewGuid():N}", "org-9", "Second Org");
 
             created = manager.CreateProfile("Second", ProfileAuthMode.SessionKey, credentials);
@@ -149,7 +152,7 @@ public class ProfileManagerTests
         var profilesPath = TempProfilesPath();
         try
         {
-            var manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()));
+            var manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()), MakeHistoryService());
 
             var ex = Assert.Throws<ProfileException>(() => manager.DeleteProfile(manager.ActiveProfile.Id));
             Assert.Equal(ProfileErrorReason.CannotDeleteLastProfile, ex.Reason);
@@ -167,7 +170,7 @@ public class ProfileManagerTests
         ProfileManager? manager = null;
         try
         {
-            manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()));
+            manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()), MakeHistoryService());
             var defaultProfileId = manager.ActiveProfile.Id;
             var second = manager.CreateProfile("Second", ProfileAuthMode.CliOAuth, null);
 
@@ -190,7 +193,7 @@ public class ProfileManagerTests
         Profile? second = null;
         try
         {
-            manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()));
+            manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()), MakeHistoryService());
             var defaultProfileId = manager.ActiveProfile.Id;
             second = manager.CreateProfile("Second", ProfileAuthMode.CliOAuth, null);
 
@@ -206,6 +209,37 @@ public class ProfileManagerTests
             File.Delete(profilesPath);
             if (second is not null)
                 CredentialStore.Clear(second.Id);
+        }
+    }
+
+    [Fact]
+    public void DeleteProfile_DeletesTheProfilesUsageHistory()
+    {
+        var profilesPath = TempProfilesPath();
+        var historyService = MakeHistoryService();
+        try
+        {
+            var manager = new ProfileManager(new ProfileStore(profilesPath), new CliCredentialReader(MissingCliCredentialsPath()), historyService);
+            var second = manager.CreateProfile("Second", ProfileAuthMode.CliOAuth, null);
+            historyService.RecordSessionReset(second.Id, new ClaudeUsage
+            {
+                SessionPercentage = 50,
+                SessionResetTime = DateTimeOffset.Now.AddHours(5),
+                WeeklyPercentage = 10,
+                WeeklyResetTime = DateTimeOffset.Now.AddDays(7),
+                OpusWeeklyPercentage = 0,
+                SonnetWeeklyPercentage = 0,
+                LastUpdated = DateTimeOffset.Now
+            }, DateTimeOffset.Now);
+            Assert.NotEmpty(historyService.LoadHistory(second.Id).Snapshots);
+
+            manager.DeleteProfile(second.Id);
+
+            Assert.Empty(historyService.LoadHistory(second.Id).Snapshots);
+        }
+        finally
+        {
+            File.Delete(profilesPath);
         }
     }
 }

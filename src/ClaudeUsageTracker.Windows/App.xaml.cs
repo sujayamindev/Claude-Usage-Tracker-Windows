@@ -41,7 +41,7 @@ public partial class App : Application
 
         try
         {
-            _profileManager = new ProfileManager(_profileStore, _cliCredentialReader);
+            _profileManager = new ProfileManager(_profileStore, _cliCredentialReader, new UsageHistoryService());
         }
         catch (ProfileStoreException ex)
         {

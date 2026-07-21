@@ -28,6 +28,7 @@ public sealed class ProfileManager
 {
     private readonly ProfileStore _store;
     private readonly CliCredentialReader _cliCredentialReader;
+    private readonly UsageHistoryService _usageHistoryService;
     private readonly List<Profile> _profiles;
     private Guid _activeProfileId;
 
@@ -37,10 +38,11 @@ public sealed class ProfileManager
     public event EventHandler<Profile>? ActiveProfileChanged;
     public event EventHandler? ProfilesChanged;
 
-    public ProfileManager(ProfileStore store, CliCredentialReader cliCredentialReader)
+    public ProfileManager(ProfileStore store, CliCredentialReader cliCredentialReader, UsageHistoryService usageHistoryService)
     {
         _store = store;
         _cliCredentialReader = cliCredentialReader;
+        _usageHistoryService = usageHistoryService;
 
         var data = _store.Load();
         if (data is not null)
@@ -141,6 +143,7 @@ public sealed class ProfileManager
 
         var profile = FindOrThrow(id);
         CredentialStore.Clear(id);
+        _usageHistoryService.DeleteHistory(id);
         _profiles.Remove(profile);
 
         var wasActive = _activeProfileId == id;
