@@ -11,11 +11,12 @@ Early-stage MVP. Currently supports:
 - A single Claude profile — sign in with a manual session key, or automatically if you're already logged into Claude Code CLI (no setup needed in that case)
 - Live tray icon showing session usage — three styles available: circular progress ring (default), horizontal progress bar, and compact status dot; selectable from "Icon Style…" in the tray menu
 - A popover with session/weekly/Opus/Sonnet usage bars, reset countdowns with actual clock times (e.g. "Resets in 1h 42m · 3:45 PM"), a live Claude system status indicator, and organization info
+- Usage history — session and weekly usage tracked over time and shown as pan-navigable charts, with JSON/CSV export ("Usage History…" in the tray menu)
 - Threshold notifications at 75/90/95% (and a custom threshold), with sound on/off toggle
 - Claude Code CLI terminal statusline integration (toggle from the tray menu) showing live session/weekly usage alongside your current directory/model in the terminal prompt
 - Launch-at-Windows-startup toggle
 
-**Not yet implemented** (present in the macOS app, planned or deferred here): multi-profile support, usage history/charts, global keyboard shortcuts, and API console cost/overage tracking.
+**Not yet implemented** (present in the macOS app, planned or deferred here): multi-profile support, global keyboard shortcuts, and API console cost/overage tracking.
 
 ## Requirements
 
