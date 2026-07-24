@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using ClaudeUsageTracker.Windows.Models;
 
@@ -36,6 +37,16 @@ public sealed class CostLedgerService(string? ledgerFilePath = null)
         WriteCompacted(result);
         return result;
     }
+
+    public decimal GetAllTimeTotal(IReadOnlyList<CostLedgerEntry> entries) =>
+        entries.Sum(e => e.CostUsd);
+
+    public IReadOnlyList<(DateOnly Date, decimal Total)> GetDailyTotals(IReadOnlyList<CostLedgerEntry> entries) =>
+        entries
+            .GroupBy(e => DateOnly.FromDateTime(e.Timestamp.LocalDateTime))
+            .Select(g => (Date: g.Key, Total: g.Sum(e => e.CostUsd)))
+            .OrderByDescending(x => x.Date)
+            .ToList();
 
     private static CostLedgerEntry? TryParseLine(string line)
     {

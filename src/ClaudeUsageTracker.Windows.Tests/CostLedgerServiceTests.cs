@@ -118,4 +118,45 @@ public class CostLedgerServiceTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void GetAllTimeTotal_WithNoEntries_ReturnsZero()
+    {
+        var service = new CostLedgerService(TempLedgerPath());
+
+        Assert.Equal(0m, service.GetAllTimeTotal([]));
+    }
+
+    [Fact]
+    public void GetAllTimeTotal_SumsAllEntries()
+    {
+        var service = new CostLedgerService(TempLedgerPath());
+        var entries = new List<CostLedgerEntry>
+        {
+            new("session-1", 1.50m, DateTimeOffset.Parse("2026-07-24T18:00:00Z")),
+            new("session-2", 2.25m, DateTimeOffset.Parse("2026-07-24T19:00:00Z"))
+        };
+
+        Assert.Equal(3.75m, service.GetAllTimeTotal(entries));
+    }
+
+    [Fact]
+    public void GetDailyTotals_GroupsBySameCalendarDateAndSortsNewestFirst()
+    {
+        var service = new CostLedgerService(TempLedgerPath());
+        var entries = new List<CostLedgerEntry>
+        {
+            new("session-1", 1.00m, new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero)),
+            new("session-2", 2.00m, new DateTimeOffset(2026, 7, 24, 12, 0, 0, TimeSpan.Zero)),
+            new("session-3", 0.50m, new DateTimeOffset(2026, 7, 24, 12, 5, 0, TimeSpan.Zero))
+        };
+
+        var dailyTotals = service.GetDailyTotals(entries);
+
+        Assert.Equal(2, dailyTotals.Count);
+        Assert.Equal(DateOnly.FromDateTime(new DateTimeOffset(2026, 7, 24, 12, 0, 0, TimeSpan.Zero).LocalDateTime), dailyTotals[0].Date);
+        Assert.Equal(2.50m, dailyTotals[0].Total);
+        Assert.Equal(DateOnly.FromDateTime(new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero).LocalDateTime), dailyTotals[1].Date);
+        Assert.Equal(1.00m, dailyTotals[1].Total);
+    }
 }
