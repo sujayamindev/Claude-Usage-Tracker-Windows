@@ -90,4 +90,32 @@ public class CostLedgerServiceTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void LoadAndCompact_RewritesFileWithDedupedRowsOnly()
+    {
+        var path = TempLedgerPath();
+        try
+        {
+            File.WriteAllLines(path,
+            [
+                """{"sessionId":"session-1","costUsd":0.50,"timestamp":"2026-07-24T18:00:00Z"}""",
+                """{"sessionId":"session-1","costUsd":1.75,"timestamp":"2026-07-24T18:05:00Z"}""",
+                """{"sessionId":"session-2","costUsd":2.00,"timestamp":"2026-07-24T19:00:00Z"}"""
+            ]);
+            var service = new CostLedgerService(path);
+            service.LoadAndCompact();
+
+            var linesOnDisk = File.ReadAllLines(path);
+
+            Assert.Equal(2, linesOnDisk.Length);
+            var reloaded = new CostLedgerService(path).LoadAndCompact();
+            Assert.Equal(2, reloaded.Count);
+            Assert.Contains(reloaded, e => e.SessionId == "session-1" && e.CostUsd == 1.75m);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }
