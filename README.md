@@ -13,6 +13,7 @@ Early-stage MVP. Currently supports:
 - Live tray icon showing session usage — three styles available: circular progress ring (default), horizontal progress bar, and compact status dot; plus color modes (multi-color/monochrome/custom), a pace marker, and a remaining-vs-used display toggle, all from "Icon Style…" in the tray menu
 - A popover with session/weekly/Opus/Sonnet usage bars, reset countdowns with actual clock times (e.g. "Resets in 1h 42m · 3:45 PM"), a live Claude system status indicator, and organization info — pin it open or detach it into its own resizable window
 - Usage history — session and weekly usage tracked over time and shown as pan-navigable charts, with JSON/CSV export ("Usage History…" in the tray menu)
+- Claude Code cost stats — all-time and per-day cost totals sourced from Claude Code CLI's own reported cost ("Claude Code Cost Stats…" in the tray menu; requires a small addition to your own statusline script to record cost per session)
 - Threshold notifications at 75/90/95% (and a custom threshold), with sound on/off toggle
 - Claude Code CLI terminal statusline integration (toggle from the tray menu) showing live session/weekly usage alongside your current directory/model in the terminal prompt
 - Launch-at-Windows-startup toggle
