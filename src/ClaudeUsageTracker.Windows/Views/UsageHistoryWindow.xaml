@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
-        Title="Claude Usage Tracker — Usage History"
+        Title="Claude Usage Tracker — History"
         Icon="/Assets/AppIcon.ico"
-        Width="640" Height="520"
-        MinWidth="480" MinHeight="380"
+        Width="640" Height="560"
+        MinWidth="480" MinHeight="420"
         ShowInTaskbar="True"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
@@ -16,54 +16,100 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <ui:TitleBar Grid.Row="0" Title="Claude Usage Tracker — Usage History"/>
+        <ui:TitleBar Grid.Row="0" Title="Claude Usage Tracker — History"/>
 
         <Grid Grid.Row="1" Margin="20,12,20,20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="0,0,0,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Usage History" FontSize="18" FontWeight="Bold"/>
-                    <TextBlock Text="Session and weekly usage over time" FontSize="11" Foreground="#8A8A8E"/>
-                </StackPanel>
-                <ComboBox x:Name="TimeScaleComboBox" Grid.Column="1" Width="110" VerticalAlignment="Center"
-                          SelectionChanged="TimeScaleComboBox_SelectionChanged"/>
-            </Grid>
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
+                <ui:Button x:Name="UsageTabButton" Content="Usage" Appearance="Primary" Margin="0,0,8,0" Click="UsageTabButton_Click"/>
+                <ui:Button x:Name="CostTabButton" Content="Cost" Appearance="Secondary" Click="CostTabButton_Click"/>
+            </StackPanel>
 
             <Grid Grid.Row="1">
-                <lvc:CartesianChart x:Name="Chart"/>
-                <TextBlock x:Name="EmptyStateText" Text="No usage history yet" FontSize="13"
-                           Foreground="#8A8A8E" HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Visibility="Collapsed"/>
-            </Grid>
+                <Grid x:Name="UsageTabContent">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-            <Grid Grid.Row="2" Margin="0,8,0,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <ui:Button x:Name="BackButton" Grid.Column="0" Content="‹" Width="32" Click="BackButton_Click"/>
-                <TextBlock x:Name="TimeRangeLabel" Grid.Column="1" HorizontalAlignment="Center"
-                           VerticalAlignment="Center" FontSize="11" Foreground="#8A8A8E"/>
-                <ui:Button x:Name="NowButton" Grid.Column="2" Content="Now" Margin="8,0" Click="NowButton_Click"/>
-                <ui:Button x:Name="ForwardButton" Grid.Column="3" Content="›" Width="32" Click="ForwardButton_Click"/>
-            </Grid>
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Session and weekly usage over time" FontSize="11" Foreground="#8A8A8E" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="TimeScaleComboBox" Grid.Column="1" Width="110" VerticalAlignment="Center"
+                                  SelectionChanged="TimeScaleComboBox_SelectionChanged"/>
+                    </Grid>
 
-            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
-                <ui:Button x:Name="ExportJsonButton" Content="Export JSON" Margin="0,0,8,0" Click="ExportJsonButton_Click"/>
-                <ui:Button x:Name="ExportCsvButton" Content="Export CSV" Click="ExportCsvButton_Click"/>
-            </StackPanel>
+                    <Grid Grid.Row="1">
+                        <lvc:CartesianChart x:Name="Chart" Background="Transparent"/>
+                        <TextBlock x:Name="EmptyStateText" Text="No usage history yet" FontSize="13"
+                                   Foreground="#8A8A8E" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="Collapsed"/>
+                    </Grid>
+
+                    <Grid Grid.Row="2" Margin="0,8,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ui:Button x:Name="BackButton" Grid.Column="0" Content="‹" Width="32" Click="BackButton_Click"/>
+                        <TextBlock x:Name="TimeRangeLabel" Grid.Column="1" HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" FontSize="11" Foreground="#8A8A8E"/>
+                        <ui:Button x:Name="NowButton" Grid.Column="2" Content="Now" Margin="8,0" Click="NowButton_Click"/>
+                        <ui:Button x:Name="ForwardButton" Grid.Column="3" Content="›" Width="32" Click="ForwardButton_Click"/>
+                    </Grid>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <ui:Button x:Name="ExportJsonButton" Content="Export JSON" Margin="0,0,8,0" Click="ExportJsonButton_Click"/>
+                        <ui:Button x:Name="ExportCsvButton" Content="Export CSV" Click="ExportCsvButton_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="CostTabContent" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                        <TextBlock x:Name="TotalText" Text="$0.00 total" FontSize="28" FontWeight="Bold"/>
+                        <TextBlock x:Name="CostEmptyStateText" Text="No cost data recorded yet" FontSize="12" Foreground="#8A8A8E" Visibility="Collapsed"/>
+                        <TextBlock Text="From Claude Code CLI's own reported cost per session" FontSize="11" Foreground="#8A8A8E" Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="DailyTotalsListView">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="#1FFFFFFF" BorderThickness="0,0,0,1" Padding="0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding DateLabel}" FontSize="13" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding CostLabel}" FontSize="13" FontWeight="SemiBold" Foreground="#8FD19E" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <ui:Button x:Name="CostRefreshButton" Grid.Row="2" Content="Refresh" HorizontalAlignment="Right" Margin="0,12,0,0" Click="CostRefreshButton_Click"/>
+                </Grid>
+            </Grid>
         </Grid>
     </Grid>
 </ui:FluentWindow>

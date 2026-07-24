@@ -31,7 +31,6 @@ public sealed class TrayIconService : IDisposable
     public event EventHandler? IconStyleSettingsRequested;
     public event EventHandler? ManageProfilesRequested;
     public event EventHandler? UsageHistoryRequested;
-    public event EventHandler? CostStatsRequested;
 
     public TrayIconService(UsageViewModel viewModel, NotificationSettingsStore notificationSettingsStore, TrayIconSettingsStore trayIconSettingsStore)
     {
@@ -45,11 +44,8 @@ public sealed class TrayIconService : IDisposable
         var manageProfilesItem = new MenuItem { Header = "Manage Profiles…" };
         manageProfilesItem.Click += (_, _) => ManageProfilesRequested?.Invoke(this, EventArgs.Empty);
 
-        var usageHistoryItem = new MenuItem { Header = "Usage History…" };
+        var usageHistoryItem = new MenuItem { Header = "History…" };
         usageHistoryItem.Click += (_, _) => UsageHistoryRequested?.Invoke(this, EventArgs.Empty);
-
-        var costStatsItem = new MenuItem { Header = "Claude Code Cost Stats…" };
-        costStatsItem.Click += (_, _) => CostStatsRequested?.Invoke(this, EventArgs.Empty);
 
         var iconStyleItem = new MenuItem { Header = "Icon Style…" };
         iconStyleItem.Click += (_, _) => IconStyleSettingsRequested?.Invoke(this, EventArgs.Empty);
@@ -69,7 +65,7 @@ public sealed class TrayIconService : IDisposable
         _taskbarIcon = new TaskbarIcon
         {
             ToolTipText = "Claude Usage Tracker",
-            ContextMenu = new ContextMenu { Items = { startupItem, manageProfilesItem, usageHistoryItem, costStatsItem, iconStyleItem, statuslineItem, notificationSettingsItem, checkForUpdatesItem, new Separator(), exitItem } }
+            ContextMenu = new ContextMenu { Items = { startupItem, manageProfilesItem, usageHistoryItem, iconStyleItem, statuslineItem, notificationSettingsItem, checkForUpdatesItem, new Separator(), exitItem } }
         };
         _taskbarIcon.TrayLeftMouseUp += (_, _) => Clicked?.Invoke(this, EventArgs.Empty);
         _taskbarIcon.TrayBalloonTipClicked += (_, _) => UpdateNotificationClicked?.Invoke(this, EventArgs.Empty);

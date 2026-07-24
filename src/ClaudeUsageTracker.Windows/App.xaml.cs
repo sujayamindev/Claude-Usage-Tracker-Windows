@@ -27,7 +27,6 @@ public partial class App : Application
     private PopoverWindow _popoverWindow = null!;
     private DetachedUsageWindow? _detachedWindow;
     private UsageHistoryWindow? _usageHistoryWindow;
-    private CostStatsWindow? _costStatsWindow;
     private UpdateCheckResult? _pendingUpdateResult;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -105,7 +104,6 @@ public partial class App : Application
         _trayIconService.IconStyleSettingsRequested += (_, _) => OpenAppearanceSettings();
         _trayIconService.ManageProfilesRequested += (_, _) => OpenManageProfiles();
         _trayIconService.UsageHistoryRequested += (_, _) => OpenUsageHistory();
-        _trayIconService.CostStatsRequested += (_, _) => OpenCostStats();
 
         SwitchToProfile(_profileManager.ActiveProfile);
 
@@ -183,21 +181,9 @@ public partial class App : Application
             _usageHistoryWindow.Activate();
             return;
         }
-        _usageHistoryWindow = new UsageHistoryWindow(_usageHistoryService, _profileManager.ActiveProfile.Id, _viewModel);
+        _usageHistoryWindow = new UsageHistoryWindow(_usageHistoryService, _profileManager.ActiveProfile.Id, _viewModel, _costLedgerService);
         _usageHistoryWindow.Closed += (_, _) => _usageHistoryWindow = null;
         _usageHistoryWindow.Show();
-    }
-
-    private void OpenCostStats()
-    {
-        if (_costStatsWindow?.IsVisible == true)
-        {
-            _costStatsWindow.Activate();
-            return;
-        }
-        _costStatsWindow = new CostStatsWindow(_costLedgerService);
-        _costStatsWindow.Closed += (_, _) => _costStatsWindow = null;
-        _costStatsWindow.Show();
     }
 
     private void RunSetupFlow(bool watchForCliLogin = true)

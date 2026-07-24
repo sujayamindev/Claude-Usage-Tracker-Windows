@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -19,6 +20,7 @@ namespace ClaudeUsageTracker.Windows.Views;
 public partial class UsageHistoryWindow : FluentWindow
 {
     private sealed record TimeScaleOption(ChartTimeScale Value, string Label);
+    private sealed record DailyTotalRow(string DateLabel, string CostLabel);
 
     private static readonly TimeScaleOption[] TimeScaleOptions =
     [
@@ -28,21 +30,25 @@ public partial class UsageHistoryWindow : FluentWindow
         new(ChartTimeScale.Days30, ChartTimeScale.Days30.Label())
     ];
 
+    private static readonly CultureInfo UsdCulture = CultureInfo.GetCultureInfo("en-US");
+
     private readonly UsageHistoryService _historyService;
     private readonly Guid _profileId;
     private readonly UsageViewModel _viewModel;
+    private readonly CostLedgerService _costLedgerService;
     private readonly System.ComponentModel.PropertyChangedEventHandler _propertyChangedHandler;
 
     private ChartTimeScale _timeScale = ChartTimeScale.Hours24;
     private double _timeOffsetHours;
 
-    public UsageHistoryWindow(UsageHistoryService historyService, Guid profileId, UsageViewModel viewModel)
+    public UsageHistoryWindow(UsageHistoryService historyService, Guid profileId, UsageViewModel viewModel, CostLedgerService costLedgerService)
     {
         InitializeComponent();
         SystemThemeWatcher.Watch(this, WindowBackdropType.Mica, updateAccents: true);
         _historyService = historyService;
         _profileId = profileId;
         _viewModel = viewModel;
+        _costLedgerService = costLedgerService;
 
         TimeScaleComboBox.ItemsSource = TimeScaleOptions;
         TimeScaleComboBox.DisplayMemberPath = nameof(TimeScaleOption.Label);
@@ -53,6 +59,59 @@ public partial class UsageHistoryWindow : FluentWindow
         Closed += (_, _) => _viewModel.PropertyChanged -= _propertyChangedHandler;
 
         RenderChart();
+        RenderCost();
+    }
+
+    private void UsageTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        UsageTabContent.Visibility = Visibility.Visible;
+        CostTabContent.Visibility = Visibility.Collapsed;
+        UsageTabButton.Appearance = ControlAppearance.Primary;
+        CostTabButton.Appearance = ControlAppearance.Secondary;
+    }
+
+    private void CostTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        UsageTabContent.Visibility = Visibility.Collapsed;
+        CostTabContent.Visibility = Visibility.Visible;
+        UsageTabButton.Appearance = ControlAppearance.Secondary;
+        CostTabButton.Appearance = ControlAppearance.Primary;
+    }
+
+    private void CostRefreshButton_Click(object sender, RoutedEventArgs e) => RenderCost();
+
+    private void RenderCost()
+    {
+        IReadOnlyList<CostLedgerEntry> entries;
+        try
+        {
+            entries = _costLedgerService.LoadAndCompact();
+        }
+        catch (IOException)
+        {
+            // The ledger file may be locked by the concurrent statusline.ps1 writer at the moment
+            // we try to read/compact it. Leave the current display as-is (matches
+            // UsageViewModel/UsagePollingService's "stale on failure" philosophy) rather than
+            // crashing or clearing what's already shown.
+            return;
+        }
+
+        if (entries.Count == 0)
+        {
+            TotalText.Text = "$0.00 total";
+            CostEmptyStateText.Visibility = Visibility.Visible;
+            DailyTotalsListView.ItemsSource = null;
+            return;
+        }
+
+        CostEmptyStateText.Visibility = Visibility.Collapsed;
+        TotalText.Text = $"{_costLedgerService.GetAllTimeTotal(entries).ToString("C", UsdCulture)} total";
+
+        DailyTotalsListView.ItemsSource = _costLedgerService.GetDailyTotals(entries)
+            .Select(d => new DailyTotalRow(
+                d.Date.ToString("MMM d, yyyy"),
+                d.Total.ToString("C", UsdCulture)))
+            .ToList();
     }
 
     private void TimeScaleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -115,13 +174,23 @@ public partial class UsageHistoryWindow : FluentWindow
             {
                 Labeler = value => new DateTime((long)value).ToString(XAxisFormat()),
                 MinLimit = range.Start.LocalDateTime.Ticks,
-                MaxLimit = range.End.LocalDateTime.Ticks
+                MaxLimit = range.End.LocalDateTime.Ticks,
+                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
+                SeparatorsPaint = new SolidColorPaint(SKColors.White.WithAlpha(25))
             }
         ];
         Chart.YAxes =
         [
-            new Axis { MinLimit = 0, MaxLimit = 100, Labeler = value => $"{value:0}%" }
+            new Axis
+            {
+                MinLimit = 0,
+                MaxLimit = 100,
+                Labeler = value => $"{value:0}%",
+                LabelsPaint = new SolidColorPaint(SKColors.LightGray),
+                SeparatorsPaint = new SolidColorPaint(SKColors.White.WithAlpha(25))
+            }
         ];
+        Chart.LegendTextPaint = new SolidColorPaint(SKColors.LightGray);
 
         var oldestTimestamp = history.Snapshots.Count == 0 ? (DateTimeOffset?)null : history.Snapshots.Min(s => s.Timestamp);
         BackButton.IsEnabled = ChartWindowCalculator.CanGoBack(oldestTimestamp, range);
