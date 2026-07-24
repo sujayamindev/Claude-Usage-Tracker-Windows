@@ -120,6 +120,40 @@ public class CostLedgerServiceTests
     }
 
     [Fact]
+    public void LoadAndCompact_WhenAlreadyFullyCompacted_SkipsRewriteAndFileStaysByteIdentical()
+    {
+        var path = TempLedgerPath();
+        try
+        {
+            // A ledger that's already deduped with no malformed lines — LoadAndCompact should
+            // detect nothing needs compacting (rawLines.Length == result.Count) and skip the
+            // write entirely, leaving the file untouched.
+            File.WriteAllLines(path,
+            [
+                """{"sessionId":"session-1","costUsd":1.00,"timestamp":"2026-07-24T18:00:00Z"}""",
+                """{"sessionId":"session-2","costUsd":2.00,"timestamp":"2026-07-24T19:00:00Z"}"""
+            ]);
+            var beforeBytes = File.ReadAllBytes(path);
+            var beforeWriteTimeUtc = File.GetLastWriteTimeUtc(path);
+            var service = new CostLedgerService(path);
+
+            var entries = service.LoadAndCompact();
+
+            Assert.Equal(2, entries.Count);
+            Assert.Contains(entries, e => e.SessionId == "session-1" && e.CostUsd == 1.00m);
+            Assert.Contains(entries, e => e.SessionId == "session-2" && e.CostUsd == 2.00m);
+
+            var afterBytes = File.ReadAllBytes(path);
+            Assert.Equal(beforeBytes, afterBytes);
+            Assert.Equal(beforeWriteTimeUtc, File.GetLastWriteTimeUtc(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void GetAllTimeTotal_WithNoEntries_ReturnsZero()
     {
         var service = new CostLedgerService(TempLedgerPath());

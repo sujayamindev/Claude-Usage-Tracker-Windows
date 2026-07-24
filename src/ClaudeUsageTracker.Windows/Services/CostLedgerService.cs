@@ -22,8 +22,10 @@ public sealed class CostLedgerService(string? ledgerFilePath = null)
         if (!File.Exists(_ledgerFilePath))
             return [];
 
+        var rawLines = File.ReadAllLines(_ledgerFilePath);
+
         var deduped = new Dictionary<string, CostLedgerEntry>();
-        foreach (var line in File.ReadAllLines(_ledgerFilePath))
+        foreach (var line in rawLines)
         {
             var entry = TryParseLine(line);
             if (entry is null)
@@ -34,7 +36,13 @@ public sealed class CostLedgerService(string? ledgerFilePath = null)
         }
 
         var result = deduped.Values.ToList();
-        WriteCompacted(result);
+
+        // Only rewrite the file when compacting actually changed something (a malformed line was
+        // dropped, or duplicate-session lines were collapsed) — skip the write otherwise, both to
+        // avoid needless I/O and to narrow the concurrency window with statusline.ps1's Add-Content.
+        if (rawLines.Length != result.Count)
+            WriteCompacted(result);
+
         return result;
     }
 
